@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Расписание УУНиТ — тест</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>Расписание УУНиТ</h1>
+    <p class="subtitle">Тестовый макет: выбор группы и просмотр расписания</p>
+  </header>
+
+  <main>
+    <form id="controls">
+      <div class="field">
+        <label for="groupSearch">Поиск группы</label>
+        <input id="groupSearch" type="search" placeholder="Например, ТОП-106Б" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="groupSelect">Группа</label>
+        <select id="groupSelect" required></select>
+      </div>
+      <button id="loadBtn" type="submit" disabled>Показать расписание</button>
+    </form>
+
+    <p id="status" class="status">Загрузка списка групп…</p>
+
+    <section id="result" hidden>
+      <h2 id="resultTitle"></h2>
+      <p id="resultMeta" class="meta"></p>
+      <div id="tableWrap" class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>День</th>
+              <th>Пара</th>
+              <th>Время</th>
+              <th>Предмет</th>
+              <th>Тип</th>
+              <th>Преподаватель</th>
+              <th>Аудитория</th>
+              <th>Недели</th>
+            </tr>
+          </thead>
+          <tbody id="scheduleBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <p id="empty" class="empty" hidden>Для этой группы занятий не найдено.</p>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
