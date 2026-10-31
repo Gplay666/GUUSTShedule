@@ -90,6 +90,12 @@ import ru.uust.schedule.data.ScheduleRepository
 import ru.uust.schedule.util.formatFullDate
 import ru.uust.schedule.util.formatShortDate
 
+/**
+ * How far the day pager must be dragged before it commits to the next day.
+ * Half a page felt too heavy; 30% keeps the gesture short but still deliberate.
+ */
+private const val DaySwipeCommitFraction = 0.30f
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ScheduleApp() {
@@ -1051,15 +1057,16 @@ private fun PortraitDayPager(
                                 var newIndex = index
                                 var nextOffset = dragOffset + dragAmount
 
+                                val commitThreshold = pageWidth * DaySwipeCommitFraction
                                 while (
-                                    nextOffset < -pageWidth / 2f &&
+                                    nextOffset < -commitThreshold &&
                                     newIndex < days.lastIndex
                                 ) {
                                     newIndex += 1
                                     nextOffset += pageWidth
                                 }
                                 while (
-                                    nextOffset > pageWidth / 2f &&
+                                    nextOffset > commitThreshold &&
                                     newIndex > 0
                                 ) {
                                     newIndex -= 1
