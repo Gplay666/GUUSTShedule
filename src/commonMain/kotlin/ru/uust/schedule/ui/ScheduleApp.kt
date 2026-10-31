@@ -40,9 +40,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -63,7 +65,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -86,6 +90,7 @@ import ru.uust.schedule.data.ScheduleRepository
 import ru.uust.schedule.util.formatFullDate
 import ru.uust.schedule.util.formatShortDate
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ScheduleApp() {
     val repository = remember { ScheduleRepository() }
@@ -130,6 +135,10 @@ fun ScheduleApp() {
                 val compact = portrait || !showSidebar
                 val drawerState = rememberDrawerState(DrawerValue.Closed)
 
+                BackHandler(enabled = drawerState.isOpen) {
+                    scope.launch { drawerState.close() }
+                }
+
                 LaunchedEffect(showSidebar) {
                     if (showSidebar) drawerState.close()
                 }
@@ -167,6 +176,9 @@ fun ScheduleApp() {
                                     state = state,
                                     modifier = Modifier.fillMaxSize(),
                                     onGroupSelected = {
+                                        scope.launch { drawerState.close() }
+                                    },
+                                    onClose = {
                                         scope.launch { drawerState.close() }
                                     },
                                 )
@@ -211,8 +223,9 @@ private fun Sidebar(
     state: ScheduleState,
     modifier: Modifier = Modifier,
     onGroupSelected: (() -> Unit)? = null,
+    onClose: (() -> Unit)? = null,
 ) {
-    Column(
+    Box(
         modifier = modifier
             .background(
                 Brush.verticalGradient(
@@ -221,32 +234,52 @@ private fun Sidebar(
                         MaterialTheme.colorScheme.surface,
                     )
                 )
-            )
-            .padding(horizontal = 24.dp, vertical = 28.dp),
+            ),
     ) {
         Column(
             modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 28.dp),
         ) {
-            BrandMark()
-            GroupSearch(state, onGroupSelected = onGroupSelected)
-            SelectedGroupCard(state)
-            Spacer(Modifier.height(8.dp))
-            SidebarFooter(state)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+            ) {
+                BrandMark()
+                GroupSearch(state, onGroupSelected = onGroupSelected)
+                SelectedGroupCard(state)
+                Spacer(Modifier.height(8.dp))
+                SidebarFooter(state)
+            }
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 14.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+            )
+            SettingsButton(
+                state = state,
+                showLabel = true,
+                modifier = Modifier
+                    .padding(top = 14.dp)
+                    .align(Alignment.Start),
+            )
         }
-        HorizontalDivider(
-            modifier = Modifier.padding(top = 14.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-        )
-        SettingsButton(
-            state = state,
-            showLabel = true,
-            modifier = Modifier
-                .padding(top = 14.dp)
-                .align(Alignment.Start),
-        )
+        if (onClose != null) {
+            FilledTonalIconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(44.dp),
+            ) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = "Закрыть меню",
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
     }
 }
 
@@ -343,8 +376,8 @@ private fun CompactTopBar(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            group.faculty?.takeIf { it.isNotBlank() }?.let {
-                                HeaderPill(it)
+                            if (group.faculty.isNotBlank()) {
+                                HeaderPill(group.faculty)
                             }
                             group.course?.let {
                                 HeaderPill("$it курс")
@@ -370,12 +403,14 @@ private fun CompactTopBar(
 private fun ScheduleContent(
     state: ScheduleState,
     compact: Boolean,
-    showWeekSelector: Boolean,
+    showHeader: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier) {
         Column(Modifier.fillMaxSize()) {
-            ScheduleHeader(state, compact, showWeekSelector)
+            if (showHeader) {
+                ScheduleHeader(state, compact)
+            }
 
             val error = state.error
             when {
@@ -404,7 +439,11 @@ private fun ScheduleContent(
                 state.selectedGroup == null -> {
                     EmptyState(
                         title = "Выберите группу",
-                        message = "Найдите свою группу в поиске, чтобы увидеть расписание.",
+                        message = if (showHeader) {
+                            "Найдите свою группу в поиске, чтобы увидеть расписание."
+                        } else {
+                            "Откройте меню и найдите свою группу."
+                        },
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -456,7 +495,6 @@ private fun ScheduleContent(
 private fun ScheduleHeader(
     state: ScheduleState,
     compact: Boolean,
-    showWeekSelector: Boolean,
 ) {
     val scheme = MaterialTheme.colorScheme
     val group = state.selectedGroup
@@ -543,9 +581,6 @@ private fun ScheduleHeader(
                 }
                 Spacer(Modifier.width(16.dp))
                 RefreshButton(state)
-            }
-            if (showWeekSelector) {
-                WeekSelector(state)
             }
         }
     }

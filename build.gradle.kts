@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "ru.uust.schedule"
-version = "0.1.0"
+version = "0.2.0"
 
 val composeVersion = "1.12.2"
 val material3Version = "1.9.0"
@@ -37,6 +37,7 @@ kotlin {
             implementation("org.jetbrains.compose.foundation:foundation:$composeVersion")
             implementation("org.jetbrains.compose.material3:material3:$material3Version")
             implementation("org.jetbrains.compose.ui:ui:$composeVersion")
+            implementation("org.jetbrains.compose.ui:ui-backhandler:$composeVersion")
             implementation("org.jetbrains.compose.ui:ui-tooling-preview:$composeVersion")
             implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
 
@@ -75,7 +76,7 @@ android {
         applicationId = "ru.uust.schedule"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = 2
         versionName = project.version.toString()
     }
 
@@ -108,7 +109,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.AppImage)
             packageName = "uust-schedule"
-            packageVersion = "0.1.0"
+            packageVersion = "0.2.0"
             description = "Расписание УУНиТ"
             vendor = "UUST Schedule"
             copyright = "© 2026 UUST Schedule"
