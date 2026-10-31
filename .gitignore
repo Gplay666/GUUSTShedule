@@ -1,2 +1,11 @@
 __pycache__/
 *.pyc
+
+# Gradle / Kotlin generated files
+.gradle/
+.kotlin/
+build/
+local.properties
+
+# AppImage staging directory (the final .AppImage is kept in dist/)
+dist/appimage/
