@@ -29,10 +29,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -92,9 +90,10 @@ import ru.uust.schedule.util.formatShortDate
 
 /**
  * How far the day pager must be dragged before it commits to the next day.
- * Half a page felt too heavy; 30% keeps the gesture short but still deliberate.
+ * A short deliberate swipe should be enough; 20% still leaves room for
+ * accidental horizontal movement during vertical scrolling.
  */
-private const val DaySwipeCommitFraction = 0.30f
+private const val DaySwipeCommitFraction = 0.20f
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -1044,6 +1043,27 @@ private fun PortraitDayPager(
                 .fillMaxWidth()
                 .clipToBounds()
                 .pointerInput(days, pageWidth) {
+                    val commitThreshold = pageWidth * DaySwipeCommitFraction
+                    val edgeResistance = pageWidth * 0.28f
+
+                    fun settle() {
+                        isDragging = false
+                        previewDayCallback(activeDay)
+                        settleJob = scope.launch {
+                            animate(
+                                initialValue = dragOffset,
+                                targetValue = 0f,
+                                animationSpec = spring(
+                                    dampingRatio = 1f,
+                                    stiffness = Spring.StiffnessMediumLow,
+                                ),
+                            ) { value, _ ->
+                                dragOffset = value
+                            }
+                            settledDayCallback(activeDay)
+                        }
+                    }
+
                     detectHorizontalDragGestures(
                         onDragStart = {
                             settleJob?.cancel()
@@ -1053,72 +1073,48 @@ private fun PortraitDayPager(
                             change.consume()
                             val index = days.indexOf(activeDay)
                             if (index >= 0) {
-                                val startDay = activeDay
-                                var newIndex = index
-                                var nextOffset = dragOffset + dragAmount
+                                val minOffset = if (index < days.lastIndex) {
+                                    -pageWidth
+                                } else {
+                                    -edgeResistance
+                                }
+                                val maxOffset = if (index > 0) pageWidth else edgeResistance
+                                dragOffset = (dragOffset + dragAmount)
+                                    .coerceIn(minOffset, maxOffset)
 
-                                val commitThreshold = pageWidth * DaySwipeCommitFraction
-                                while (
-                                    nextOffset < -commitThreshold &&
-                                    newIndex < days.lastIndex
-                                ) {
-                                    newIndex += 1
-                                    nextOffset += pageWidth
+                                val previewIndex = when {
+                                    dragOffset <= -commitThreshold &&
+                                        index < days.lastIndex -> index + 1
+                                    dragOffset >= commitThreshold &&
+                                        index > 0 -> index - 1
+                                    else -> index
                                 }
-                                while (
-                                    nextOffset > commitThreshold &&
-                                    newIndex > 0
-                                ) {
-                                    newIndex -= 1
-                                    nextOffset -= pageWidth
-                                }
-
-                                if (newIndex == 0) {
-                                    nextOffset = nextOffset.coerceAtMost(pageWidth * 0.28f)
-                                }
-                                if (newIndex == days.lastIndex) {
-                                    nextOffset = nextOffset.coerceAtLeast(-pageWidth * 0.28f)
-                                }
-
-                                val newDay = days[newIndex]
-                                if (newDay != startDay) {
-                                    activeDay = newDay
-                                    previewDayCallback(newDay)
-                                }
-                                dragOffset = nextOffset
+                                previewDayCallback(days[previewIndex])
                             }
                         },
                         onDragEnd = {
-                            isDragging = false
-                            settleJob = scope.launch {
-                                animate(
-                                    initialValue = dragOffset,
-                                    targetValue = 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = 1f,
-                                        stiffness = Spring.StiffnessMediumLow,
-                                    ),
-                                ) { value, _ ->
-                                    dragOffset = value
+                            val index = days.indexOf(activeDay)
+                            if (index >= 0) {
+                                val targetIndex = when {
+                                    dragOffset <= -commitThreshold &&
+                                        index < days.lastIndex -> index + 1
+                                    dragOffset >= commitThreshold &&
+                                        index > 0 -> index - 1
+                                    else -> index
                                 }
-                                settledDayCallback(activeDay)
+                                if (targetIndex != index) {
+                                    activeDay = days[targetIndex]
+                                    dragOffset += if (targetIndex > index) {
+                                        pageWidth
+                                    } else {
+                                        -pageWidth
+                                    }
+                                }
                             }
+                            settle()
                         },
                         onDragCancel = {
-                            isDragging = false
-                            settleJob = scope.launch {
-                                animate(
-                                    initialValue = dragOffset,
-                                    targetValue = 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = 1f,
-                                        stiffness = Spring.StiffnessMediumLow,
-                                    ),
-                                ) { value, _ ->
-                                    dragOffset = value
-                                }
-                                settledDayCallback(activeDay)
-                            }
+                            settle()
                         },
                     )
                 },
@@ -1216,17 +1212,18 @@ private fun DayPicker(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             letterSpacing = 1.5.sp,
         )
-        LazyRow(
+        Row(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
-            contentPadding = PaddingValues(end = 4.dp),
         ) {
-            items(days, key = { it }) { day ->
+            days.forEach { day ->
                 DayChip(
                     day = day,
                     selected = day == selectedDay,
                     dateLabel = dateLabels[day],
                     isToday = day == today,
                     onClick = { onSelect(day) },
+                    modifier = Modifier.weight(1f),
                 )
             }
         }
@@ -1240,6 +1237,7 @@ private fun DayChip(
     dateLabel: String?,
     isToday: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
     val accent = weekdayAccent(day, scheme)
@@ -1264,11 +1262,11 @@ private fun DayChip(
             isToday -> BorderStroke(1.5.dp, accent)
             else -> BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.45f))
         },
-        modifier = Modifier.height(48.dp),
+        modifier = modifier.height(48.dp),
     ) {
         Box(
             Modifier
-                .widthIn(min = 40.dp)
+                .fillMaxWidth()
                 .padding(horizontal = 3.dp, vertical = 5.dp),
         ) {
             Column(
