@@ -9,3 +9,8 @@ local.properties
 
 # AppImage staging directory (the final .AppImage is kept in dist/)
 dist/appimage/
+
+# Documentation files are kept locally; README.md is the only tracked one
+*.md
+!README.md
+*.pdf
