@@ -7,8 +7,8 @@ __pycache__/
 build/
 local.properties
 
-# AppImage staging directory (the final .AppImage is kept in dist/)
-dist/appimage/
+# Release binaries are kept locally and published separately
+dist/
 
 # Documentation files are kept locally; README.md is the only tracked one
 *.md
