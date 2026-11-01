@@ -675,12 +675,16 @@ private fun PortraitScheduleContent(
     val error = state.error
     val listState = rememberLazyListState()
     var headerHeightPx by remember { mutableStateOf(0) }
-    val collapseFraction = when {
-        group == null -> 0f
-        listState.firstVisibleItemIndex > 0 -> 1f
-        headerHeightPx <= 0 -> 0f
-        else -> (listState.firstVisibleItemScrollOffset.toFloat() / headerHeightPx)
-            .coerceIn(0f, 1f)
+    // Read scroll state inside graphicsLayer blocks, not during composition:
+    // otherwise every scrolled pixel recomposes the whole portrait screen.
+    val collapseFraction: () -> Float = {
+        when {
+            group == null -> 0f
+            listState.firstVisibleItemIndex > 0 -> 1f
+            headerHeightPx <= 0 -> 0f
+            else -> (listState.firstVisibleItemScrollOffset.toFloat() / headerHeightPx)
+                .coerceIn(0f, 1f)
+        }
     }
 
     Column(modifier.fillMaxSize()) {
@@ -755,7 +759,7 @@ private fun PortraitScheduleContent(
 @Composable
 private fun PortraitTopBar(
     title: String,
-    titleAlpha: Float,
+    titleAlpha: () -> Float,
     onOpenMenu: () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -773,7 +777,7 @@ private fun PortraitTopBar(
                     modifier = Modifier
                         .weight(1f)
                         .graphicsLayer {
-                            val visible = titleAlpha.coerceIn(0f, 1f)
+                            val visible = titleAlpha().coerceIn(0f, 1f)
                             alpha = visible
                             translationY = (1f - visible) * 8.dp.toPx()
                             val scale = 0.92f + 0.08f * visible
@@ -796,7 +800,7 @@ private fun PortraitTopBar(
 @Composable
 private fun PortraitGroupHeader(
     state: ScheduleState,
-    collapseFraction: Float = 0f,
+    collapseFraction: () -> Float = { 0f },
     modifier: Modifier = Modifier,
 ) {
     val group = state.selectedGroup
@@ -818,7 +822,7 @@ private fun PortraitGroupHeader(
             Text(
                 title,
                 modifier = Modifier.graphicsLayer {
-                    val scale = 1f - 0.10f * collapseFraction
+                    val scale = 1f - 0.10f * collapseFraction()
                     scaleX = scale
                     scaleY = scale
                     transformOrigin = TransformOrigin(0f, 0f)
@@ -853,14 +857,17 @@ private fun PortraitGroupHeader(
 private fun PortraitScheduleList(
     state: ScheduleState,
     listState: LazyListState,
-    collapseFraction: Float,
+    collapseFraction: () -> Float,
     onHeaderMeasured: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val days = state.availableWeekdays
     val selectedDay = state.selectedDay.takeIf { it in days } ?: days.first()
-    val dateLabels = days.associateWith { day ->
-        state.dateForWeekday(day)?.let(::formatShortDate)
+    val selectedWeek = state.selectedWeek
+    val dateLabels = remember(days, selectedWeek) {
+        days.associateWith { day ->
+            state.dateForWeekday(day)?.let(::formatShortDate)
+        }
     }
     val error = state.error
     val horizontalPadding = 20.dp
@@ -1158,7 +1165,9 @@ private fun PortraitDayPage(
     horizontalPadding: Dp,
 ) {
     val lessons = state.lessonsByDay[day].orEmpty()
-    val dateLabel = state.dateForWeekday(day)?.let(::formatFullDate)
+    val dateLabel = remember(day, state.selectedWeek) {
+        state.dateForWeekday(day)?.let(::formatFullDate)
+    }
 
     if (lessons.isEmpty()) {
         EmptyState(

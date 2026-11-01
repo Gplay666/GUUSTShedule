@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -72,9 +73,22 @@ fun Timetable(
     val days = state.availableWeekdays
     val pairs = state.pairs
     val lessonsByCell = state.lessonsByCell
+    val lessonsByDay = state.lessonsByDay
     val allLessons = state.visibleLessons
-    val dateLabels = days.associateWith { day ->
-        state.dateForWeekday(day)?.let(::formatShortDate)
+    val selectedWeek = state.selectedWeek
+    val dateLabels = remember(days, selectedWeek) {
+        days.associateWith { day ->
+            state.dateForWeekday(day)?.let(::formatShortDate)
+        }
+    }
+    val pairTimes = remember(allLessons) {
+        buildMap {
+            for (lesson in allLessons) {
+                val pair = lesson.pair ?: continue
+                if (lesson.time.isBlank() || lesson.time == "Время не указано") continue
+                if (!containsKey(pair)) put(pair, lesson.time)
+            }
+        }
     }
     val horizontalScroll = rememberScrollState()
     val verticalScroll = rememberScrollState()
@@ -105,9 +119,9 @@ fun Timetable(
                         Column(Modifier.fillMaxWidth()) {
                             TimetableHeader(
                                 days = days,
-                                selectedWeek = state.selectedWeek,
+                                selectedWeek = selectedWeek,
                                 dateLabels = dateLabels,
-                                lessons = allLessons,
+                                lessonsByDay = lessonsByDay,
                                 today = state.todayWeekday,
                             )
                             pairs.forEach { pair ->
@@ -115,9 +129,9 @@ fun Timetable(
                                     pair = pair,
                                     days = days,
                                     lessonsByCell = lessonsByCell,
-                                    allLessons = allLessons,
+                                    pairTimes = pairTimes,
                                     today = state.todayWeekday,
-                                    showWeeks = state.selectedWeek == null,
+                                    showWeeks = selectedWeek == null,
                                 )
                             }
                         }
@@ -133,7 +147,7 @@ private fun TimetableHeader(
     days: List<Int>,
     selectedWeek: Int?,
     dateLabels: Map<Int, String?>,
-    lessons: List<Lesson>,
+    lessonsByDay: Map<Int, List<Lesson>>,
     today: Int,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -173,7 +187,7 @@ private fun TimetableHeader(
 
         days.forEach { day ->
             val accent = weekdayAccent(day, scheme)
-            val count = lessons.count { it.weekday == day }
+            val count = lessonsByDay[day]?.size ?: 0
             Box(
                 Modifier
                     .weight(1f)
@@ -249,13 +263,13 @@ private fun TimetableRow(
     pair: Int,
     days: List<Int>,
     lessonsByCell: Map<Pair<Int, Int>, List<Lesson>>,
-    allLessons: List<Lesson>,
+    pairTimes: Map<Int, String>,
     today: Int,
     showWeeks: Boolean,
 ) {
     val scheme = MaterialTheme.colorScheme
     val lineColor = scheme.outlineVariant.copy(alpha = 0.32f)
-    val time = pairTime(pair, allLessons)
+    val time = pairTimes[pair] ?: StandardPairTimes[pair].orEmpty()
 
     Row(
         Modifier
@@ -342,9 +356,10 @@ private fun TimetableCell(
                 )
             }
         } else if (lessons.size == 1) {
+            val lesson = lessons.first()
             TimetableLessonCard(
-                lesson = lessons.first(),
-                accent = lessonAccent(lessons.first().type),
+                lesson = lesson,
+                accent = remember(lesson.type) { lessonAccent(lesson.type) },
                 showWeeks = showWeeks,
                 fillHeight = true,
                 modifier = Modifier.fillMaxSize(),
@@ -357,7 +372,7 @@ private fun TimetableCell(
                 lessons.forEachIndexed { index, lesson ->
                     TimetableLessonCard(
                         lesson = lesson,
-                        accent = lessonAccent(lesson.type),
+                        accent = remember(lesson.type) { lessonAccent(lesson.type) },
                         showWeeks = showWeeks,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -443,13 +458,15 @@ private fun LessonTypeRow(
     accent: Color,
     showWeeks: Boolean,
 ) {
+    val typeLabel = remember(lesson.type) { shortLessonType(lesson.type) }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
-            shortLessonType(lesson.type),
+            typeLabel,
             style = MaterialTheme.typography.labelSmall,
             color = accent,
             fontWeight = FontWeight.SemiBold,
@@ -458,8 +475,9 @@ private fun LessonTypeRow(
             modifier = Modifier.weight(1f),
         )
         if (showWeeks && lesson.weeks.isNotEmpty()) {
+            val weeksText = remember(lesson.weeks) { formatWeeks(lesson.weeks) }
             Text(
-                "нед. ${formatWeeks(lesson.weeks)}",
+                "нед. $weeksText",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -506,11 +524,6 @@ private fun LessonMetaRow(lesson: Lesson) {
         }
     }
 }
-
-private fun pairTime(pair: Int, lessons: List<Lesson>): String =
-    lessons.firstOrNull {
-        it.pair == pair && it.time.isNotBlank() && it.time != "Время не указано"
-    }?.time ?: StandardPairTimes[pair].orEmpty()
 
 private fun Modifier.gridBorder(color: Color): Modifier = drawBehind {
     val stroke = 1.dp.toPx()

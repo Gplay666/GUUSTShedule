@@ -265,6 +265,7 @@ fun GroupSearch(
             enter = fadeIn(tween(160)) + expandVertically(animationSpec = AppMotion.spatial()),
             exit = fadeOut(tween(100)) + shrinkVertically(animationSpec = AppMotion.spatial()),
         ) {
+            val filteredGroups = state.filteredGroups
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -274,7 +275,7 @@ fun GroupSearch(
                     MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                 ),
             ) {
-                if (state.filteredGroups.isEmpty()) {
+                if (filteredGroups.isEmpty()) {
                     Column(
                         Modifier
                             .fillMaxWidth()
@@ -300,7 +301,7 @@ fun GroupSearch(
                         contentPadding = PaddingValues(8.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
-                        items(state.filteredGroups, key = { it.id }) { group ->
+                        items(filteredGroups, key = { it.id }) { group ->
                             GroupSuggestion(
                                 group = group,
                                 selected = state.selectedGroup?.id == group.id,
@@ -333,6 +334,8 @@ private fun GroupSuggestion(
         animationSpec = AppMotion.effects(),
         label = "suggestionBackground",
     )
+    val subtitle = group.subtitle
+    val initial = group.title.firstOrNull()?.uppercaseChar()?.toString().orEmpty()
 
     Row(
         modifier = Modifier
@@ -351,7 +354,7 @@ private fun GroupSuggestion(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    group.title.take(1).uppercase(),
+                    initial,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -366,9 +369,9 @@ private fun GroupSuggestion(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (group.subtitle.isNotBlank()) {
+            if (subtitle.isNotBlank()) {
                 Text(
-                    group.subtitle,
+                    subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -1356,7 +1359,9 @@ private fun LessonCard(
     compact: Boolean,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val accent = lessonAccent(lesson.type)
+    val accent = remember(lesson.type) { lessonAccent(lesson.type) }
+    val typeLabel = remember(lesson.type) { shortLessonType(lesson.type) }
+    val weeksText = remember(lesson.weeks) { formatWeeks(lesson.weeks) }
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val shape = if (compact) RoundedCornerShape(24.dp) else RoundedCornerShape(28.dp)
@@ -1427,10 +1432,10 @@ private fun LessonCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    TypeBadge(shortLessonType(lesson.type), accent)
+                    TypeBadge(typeLabel, accent)
                     if (lesson.weeks.isNotEmpty()) {
                         Text(
-                            "нед. ${formatWeeks(lesson.weeks)}",
+                            "нед. $weeksText",
                             style = MaterialTheme.typography.labelSmall,
                             color = scheme.onSurfaceVariant,
                             maxLines = 1,
@@ -1542,15 +1547,18 @@ internal fun weekdayAccent(day: Int, scheme: ColorScheme): Color = when (day) {
     else -> scheme.primary
 }
 
-internal fun shortLessonType(type: String): String = when {
-    type.contains("Лекция + практика + лабораторная", ignoreCase = true) ->
-        "Лекция + практика + лабораторная"
-    type.contains("Лекция + практика", ignoreCase = true) -> "Лекция + практика"
-    type.contains("Лабораторная", ignoreCase = true) -> "Лабораторная"
-    type.contains("Практика", ignoreCase = true) -> "Практика"
-    type.contains("Семинар", ignoreCase = true) -> "Семинар"
-    type.contains("Лекция", ignoreCase = true) -> "Лекция"
-    else -> type
+internal fun shortLessonType(type: String): String {
+    val normalized = type.trim().lowercase()
+    return when {
+        normalized.contains("лекция + практика + лабораторная") ->
+            "Лекция + практика + лабораторная"
+        normalized.contains("лекция + практика") -> "Лекция + практика"
+        normalized.contains("лабораторная") -> "Лабораторная"
+        normalized.contains("практика") -> "Практика"
+        normalized.contains("семинар") -> "Семинар"
+        normalized.contains("лекция") -> "Лекция"
+        else -> type
+    }
 }
 
 fun weekdayName(day: Int): String = when (day) {
@@ -1588,12 +1596,24 @@ fun lessonCountText(count: Int): String {
 
 fun formatWeeks(weeks: List<Int>): String {
     if (weeks.isEmpty()) return "—"
-    val numbers = weeks.distinct().sorted()
-    val parts = mutableListOf<String>()
-    var start = numbers.first()
+
+    // Lesson.weeks is already distinct and sorted; only fall back to the
+    // allocating path for arbitrary callers.
+    var ordered = true
+    for (index in 1 until weeks.size) {
+        if (weeks[index] <= weeks[index - 1]) {
+            ordered = false
+            break
+        }
+    }
+    val numbers = if (ordered) weeks else weeks.distinct().sorted()
+
+    val parts = ArrayList<String>(numbers.size)
+    var start = numbers[0]
     var previous = start
 
-    for (number in numbers.drop(1)) {
+    for (index in 1 until numbers.size) {
+        val number = numbers[index]
         if (number == previous + 1) {
             previous = number
             continue

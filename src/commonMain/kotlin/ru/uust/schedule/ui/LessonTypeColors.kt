@@ -33,47 +33,48 @@ internal object LessonTypeColors {
 }
 
 internal fun lessonAccent(type: String): Color {
-    val normalized = type.trim()
+    // Normalize once instead of doing an ignore-case scan for every pattern.
+    val normalized = type.trim().lowercase()
     return when {
-        normalized.contains("Лекция + практика + лабораторная", ignoreCase = true) ->
+        normalized.contains("лекция + практика + лабораторная") ->
             LessonTypeColors.LecturePracticeLab
-        normalized.contains("Лекция + практика", ignoreCase = true) ->
+        normalized.contains("лекция + практика") ->
             LessonTypeColors.LecturePractice
-        normalized.contains("Защита", ignoreCase = true) ->
+        normalized.contains("защита") ->
             LessonTypeColors.Defense
-        normalized.contains("Консультац", ignoreCase = true) ->
+        normalized.contains("консультац") ->
             LessonTypeColors.Consultation
-        normalized.contains("Лаборатор", ignoreCase = true) ->
+        normalized.contains("лаборатор") ->
             LessonTypeColors.Lab
-        normalized.contains("Экзамен", ignoreCase = true) ->
+        normalized.contains("экзамен") ->
             LessonTypeColors.Exam
-        normalized.contains("Зачёт с оценкой", ignoreCase = true) ||
-            normalized.contains("Зачет с оценкой", ignoreCase = true) ->
+        normalized.contains("зачёт с оценкой") ||
+            normalized.contains("зачет с оценкой") ->
             LessonTypeColors.TestWithGrade
-        normalized.contains("Зачёт", ignoreCase = true) ||
-            normalized.contains("Зачет", ignoreCase = true) ->
+        normalized.contains("зачёт") ||
+            normalized.contains("зачет") ->
             LessonTypeColors.Test
-        normalized.contains("Производственная практика", ignoreCase = true) ->
+        normalized.contains("производственная практика") ->
             LessonTypeColors.ProductionPractice
-        normalized.contains("Практика", ignoreCase = true) ||
-            normalized.contains("Семинар", ignoreCase = true) ->
+        normalized.contains("практика") ||
+            normalized.contains("семинар") ->
             LessonTypeColors.Practice
-        normalized.contains("Лекция", ignoreCase = true) ||
-            normalized.contains("Лек", ignoreCase = true) ->
+        normalized.contains("лекция") ||
+            normalized.contains("лек") ->
             LessonTypeColors.Lecture
-        normalized.contains("Физвоспитание", ignoreCase = true) ->
+        normalized.contains("физвоспитание") ->
             LessonTypeColors.PhysicalEducation
-        normalized.contains("Военная подготовка", ignoreCase = true) ->
+        normalized.contains("военная подготовка") ->
             LessonTypeColors.Military
-        normalized.contains("Иностранный язык", ignoreCase = true) ->
+        normalized.contains("иностранный язык") ->
             LessonTypeColors.ForeignLanguage
-        normalized.contains("Мероприятие", ignoreCase = true) ->
+        normalized.contains("мероприятие") ->
             LessonTypeColors.Event
-        normalized.contains("Ликвидация", ignoreCase = true) ->
+        normalized.contains("ликвидация") ->
             LessonTypeColors.Liquidation
-        normalized.contains("Кураторский час", ignoreCase = true) ->
+        normalized.contains("кураторский час") ->
             LessonTypeColors.CuratorHour
-        normalized.contains("Прочее", ignoreCase = true) ->
+        normalized.contains("прочее") ->
             LessonTypeColors.Other
         else -> LessonTypeColors.Unknown
     }

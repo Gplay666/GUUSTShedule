@@ -1,6 +1,7 @@
 package ru.uust.schedule.ui
 
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -89,55 +90,90 @@ class ScheduleState(
     private var weekSelectionInitialized = false
     private var isInitializing = false
 
+    private data class GroupSearchEntry(
+        val group: Group,
+        val titleLower: String,
+        val facultyLower: String,
+        val idText: String,
+    )
+
     init {
         refreshSystemTheme()
     }
 
-    val filteredGroups: List<Group>
-        get() {
-            val text = query.trim()
-            if (text.isEmpty()) return emptyList()
+    /**
+     * Lower-casing is done once when the group list changes. The previous
+     * implementation lower-cased every title again for every sort comparison.
+     */
+    private val groupSearchIndex by derivedStateOf {
+        groups.map { group ->
+            GroupSearchEntry(
+                group = group,
+                titleLower = group.title.lowercase(),
+                facultyLower = group.faculty.lowercase(),
+                idText = group.id.toString(),
+            )
+        }
+    }
 
-            return groups.asSequence()
-                .filter {
-                    it.title.contains(text, ignoreCase = true) ||
-                        it.faculty.contains(text, ignoreCase = true) ||
-                        it.id.toString().contains(text)
+    val filteredGroups: List<Group> by derivedStateOf {
+        val text = query.trim()
+        if (text.isEmpty()) {
+            emptyList()
+        } else {
+            val needle = text.lowercase()
+            groupSearchIndex.asSequence()
+                .filter { entry ->
+                    entry.titleLower.contains(needle) ||
+                        entry.facultyLower.contains(needle) ||
+                        entry.idText.contains(text)
                 }
-                .sortedWith(compareBy<Group> { it.title.length }.thenBy { it.title.lowercase() })
+                .sortedWith(
+                    compareBy<GroupSearchEntry> { it.group.title.length }
+                        .thenBy { it.titleLower },
+                )
                 .take(24)
+                .map { it.group }
                 .toList()
         }
+    }
 
-    val weeks: List<Int>
-        get() = lessons.flatMap { it.weeks }.distinct().sorted()
+    val weeks: List<Int> by derivedStateOf {
+        buildSet {
+            lessons.forEach { addAll(it.weeks) }
+        }.sorted()
+    }
 
-    val currentWeekAvailable: Boolean
-        get() = academicWeek in weeks
+    val currentWeekAvailable: Boolean by derivedStateOf {
+        academicWeek in weeks
+    }
 
     fun dateForWeekday(day: Int): LocalDate? =
         selectedWeek?.let { AcademicCalendar.weekdayDate(it, day) }
 
-    val visibleLessons: List<Lesson>
-        get() = selectedWeek?.let { week -> lessons.filter { week in it.weeks } } ?: lessons
+    val visibleLessons: List<Lesson> by derivedStateOf {
+        selectedWeek?.let { week -> lessons.filter { week in it.weeks } } ?: lessons
+    }
 
-    val lessonsByDay: Map<Int, List<Lesson>>
-        get() = visibleLessons.groupBy { it.weekday }.toSortedMap()
+    val lessonsByDay: Map<Int, List<Lesson>> by derivedStateOf {
+        visibleLessons.groupBy { it.weekday }.toSortedMap()
+    }
 
-    val lessonsByCell: Map<Pair<Int, Int>, List<Lesson>>
-        get() = visibleLessons.groupBy { it.weekday to (it.pair ?: 0) }
+    val lessonsByCell: Map<Pair<Int, Int>, List<Lesson>> by derivedStateOf {
+        visibleLessons.groupBy { it.weekday to (it.pair ?: 0) }
+    }
 
-    val availableWeekdays: List<Int>
-        get() = buildList {
+    val availableWeekdays: List<Int> by derivedStateOf {
+        buildList {
             addAll(1..6)
             if (lessons.any { it.weekday == 7 }) add(7)
         }
+    }
 
-    val pairs: List<Int>
-        get() {
-            val maxPair = maxOf(6, lessons.mapNotNull { it.pair }.maxOrNull() ?: 6)
-            return (1..maxPair).toList()
-        }
+    val pairs: List<Int> by derivedStateOf {
+        val maxPair = maxOf(6, lessons.maxOfOrNull { it.pair ?: 0 } ?: 0)
+        (1..maxPair).toList()
+    }
 
     suspend fun initialize() {
         if (isInitializing) return
@@ -151,12 +187,12 @@ class ScheduleState(
         error = null
         isOffline = false
 
-        // Show the last successful local copy immediately, then refresh it only
-        // if a network interface is available.
-        applyCachedSnapshot()
-        isLoadingGroups = groups.isEmpty()
-
         try {
+            // Show the last successful local copy immediately, then refresh it
+            // only if a network interface is available.
+            applyCachedSnapshot()
+            isLoadingGroups = groups.isEmpty()
+
             val result = repository.loadGroups(
                 forceRefresh = true,
                 allowNetwork = true,
@@ -203,11 +239,12 @@ class ScheduleState(
         }
     }
 
-    private fun applyCachedSnapshot() {
+    private suspend fun applyCachedSnapshot() {
         val cachedGroups = repository.cachedGroups() ?: return
         groups = cachedGroups
 
-        val preferred = cachedGroups.find { it.id == repository.cachedSelectedGroupId() }
+        val preferredId = repository.cachedSelectedGroupId()
+        val preferred = cachedGroups.find { it.id == preferredId }
             ?: cachedGroups.find { it.id == DEFAULT_GROUP_ID }
             ?: cachedGroups.firstOrNull()
 

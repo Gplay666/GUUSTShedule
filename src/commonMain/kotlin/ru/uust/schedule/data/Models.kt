@@ -1,7 +1,9 @@
 package ru.uust.schedule.data
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
 data class GroupDto(
@@ -11,6 +13,7 @@ data class GroupDto(
     val course: Int? = null,
 )
 
+@Immutable
 @Serializable
 data class Group(
     val id: Int,
@@ -18,11 +21,12 @@ data class Group(
     val faculty: String,
     val course: Int?,
 ) {
-    val subtitle: String
-        get() = listOfNotNull(
-            faculty.takeIf { it.isNotBlank() },
-            course?.let { "$it курс" },
-        ).joinToString(" · ")
+    /** Precomputed because it is read by every suggestion and selected-group card. */
+    @Transient
+    val subtitle: String = listOfNotNull(
+        faculty.takeIf { it.isNotBlank() },
+        course?.let { "$it курс" },
+    ).joinToString(" · ")
 }
 
 @Serializable
@@ -45,6 +49,7 @@ data class LessonDto(
     val comment: String? = null,
 )
 
+@Immutable
 @Serializable
 data class Lesson(
     val id: String,

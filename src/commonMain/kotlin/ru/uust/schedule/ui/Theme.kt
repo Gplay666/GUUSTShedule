@@ -10,6 +10,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -297,21 +298,25 @@ fun UustScheduleTheme(
     systemAccent: Color? = null,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        palette == ThemePalette.System && systemAccent != null -> {
-            val companion = mix(
-                systemAccent,
-                if (darkTheme) Color.Black else Color.White,
-                0.28f,
-            )
-            brandColorScheme(systemAccent, companion, darkTheme)
-        }
+    // Generating a Material scheme runs contrast calculations and allocates a
+    // full ColorScheme. Reuse it until the theme inputs actually change.
+    val colorScheme = remember(darkTheme, palette, systemAccent) {
+        when {
+            palette == ThemePalette.System && systemAccent != null -> {
+                val companion = mix(
+                    systemAccent,
+                    if (darkTheme) Color.Black else Color.White,
+                    0.28f,
+                )
+                brandColorScheme(systemAccent, companion, darkTheme)
+            }
 
-        palette.outer != null && palette.inner != null -> {
-            brandColorScheme(palette.outer, palette.inner, darkTheme)
-        }
+            palette.outer != null && palette.inner != null -> {
+                brandColorScheme(palette.outer, palette.inner, darkTheme)
+            }
 
-        else -> if (darkTheme) CurrentDarkColors else CurrentLightColors
+            else -> if (darkTheme) CurrentDarkColors else CurrentLightColors
+        }
     }
 
     MaterialTheme(
