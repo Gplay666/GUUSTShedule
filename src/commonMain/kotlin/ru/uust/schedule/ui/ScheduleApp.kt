@@ -1175,7 +1175,7 @@ private fun PortraitDayPage(
             message = if (state.lessons.isEmpty()) {
                 "Для этой группы пока нет занятий. Попробуйте обновить данные."
             } else {
-                "Выберите другой день недели или другую учебную неделю."
+                "Уфа сегодня гуляет."
             },
             modifier = Modifier
                 .fillMaxWidth()
