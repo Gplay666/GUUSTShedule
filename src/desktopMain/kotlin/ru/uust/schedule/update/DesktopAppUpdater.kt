@@ -4,8 +4,11 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 import ru.uust.schedule.data.createHttpClient
 import java.awt.Desktop
 import java.net.URI
@@ -155,6 +158,7 @@ private class DesktopAppUpdater : AppUpdater {
         var helperStarted = false
         try {
             downloadVerified(update, temporary, onProgress)
+            coroutineContext.ensureActive()
             if (!temporary.toFile().setExecutable(true, false)) {
                 throw UpdateException("Не удалось подготовить файл обновления.")
             }
@@ -210,6 +214,7 @@ private class DesktopAppUpdater : AppUpdater {
         var helperStarted = false
         try {
             downloadVerified(update, archive, onProgress)
+            coroutineContext.ensureActive()
             val script = directory.resolve("update.ps1")
             Files.writeString(
                 script,
@@ -280,6 +285,7 @@ private class DesktopAppUpdater : AppUpdater {
         val expectedChecksum = try {
             fetchChecksum(update)
         } catch (throwable: Throwable) {
+            if (throwable is CancellationException) throw throwable
             println("UUST: failed to load checksum: ${throwable.message}")
             null
         }
@@ -309,7 +315,7 @@ private class DesktopAppUpdater : AppUpdater {
             ?.takeIf { it.length == 64 }
     }
 
-    private fun download(
+    private suspend fun download(
         update: UpdateInfo,
         target: Path,
         onProgress: (Float?) -> Unit,
@@ -340,6 +346,7 @@ private class DesktopAppUpdater : AppUpdater {
                 while (true) {
                     val read = input.read(buffer)
                     if (read < 0) break
+                    coroutineContext.ensureActive()
                     output.write(buffer, 0, read)
                     digest.update(buffer, 0, read)
                     downloaded += read
