@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "ru.uust.schedule"
-version = "0.4.2"
+version = "0.5.0"
 
 val composeVersion = "1.12.2"
 val material3Version = "1.9.0"
@@ -76,7 +76,7 @@ android {
         applicationId = "ru.uust.schedule"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
+        versionCode = 7
         versionName = project.version.toString()
     }
 
@@ -104,16 +104,19 @@ compose.desktop {
     application {
         mainClass = "ru.uust.schedule.MainKt"
 
-        jvmArgs += listOf("-Dfile.encoding=UTF-8")
+        jvmArgs += listOf(
+            "-Dfile.encoding=UTF-8",
+            "-Duust.app.version=$version",
+        )
 
         nativeDistributions {
             targetFormats(TargetFormat.AppImage)
             packageName = "uust-schedule"
-            packageVersion = "0.4.2"
+            packageVersion = "0.5.0"
             description = "Расписание УУНиТ"
             vendor = "UUST Schedule"
             copyright = "© 2026 UUST Schedule"
-            modules("jdk.crypto.ec")
+            modules("jdk.crypto.ec", "java.net.http")
 
             linux {
                 iconFile.set(project.file("src/desktopMain/resources/icon.png"))

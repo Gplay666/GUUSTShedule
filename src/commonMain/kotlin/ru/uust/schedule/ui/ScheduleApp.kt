@@ -87,6 +87,9 @@ import kotlinx.coroutines.launch
 import ru.uust.schedule.data.GroupTarget
 import ru.uust.schedule.data.ScheduleRepository
 import ru.uust.schedule.data.TeacherTarget
+import ru.uust.schedule.update.UpdateState
+import ru.uust.schedule.update.createAppUpdater
+import ru.uust.schedule.update.currentAppVersion
 import ru.uust.schedule.util.formatFullDate
 import ru.uust.schedule.util.formatShortDate
 
@@ -110,10 +113,20 @@ fun ScheduleApp() {
             initialSystemDark = systemDark,
         )
     }
+    val updateState = remember(scope) {
+        UpdateState(
+            updater = createAppUpdater(),
+            scope = scope,
+        )
+    }
     var systemDarkEffectStarted by remember { mutableStateOf(false) }
 
     LaunchedEffect(state) {
         state.initialize()
+    }
+
+    LaunchedEffect(updateState) {
+        updateState.checkForUpdates()
     }
 
     LaunchedEffect(systemDark) {
@@ -221,6 +234,12 @@ fun ScheduleApp() {
                     }
                 }
             }
+            UpdateDialog(
+                state = updateState,
+                darkTheme = state.isDark,
+                palette = state.palette,
+                systemAccent = state.systemAccent,
+            )
         }
     }
 }
@@ -292,6 +311,8 @@ private fun Sidebar(
 
 @Composable
 private fun SidebarFooter(state: ScheduleState) {
+    val version = remember { currentAppVersion() }
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         HorizontalDivider(
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
@@ -336,7 +357,7 @@ private fun SidebarFooter(state: ScheduleState) {
             Text("Обновить расписание")
         }
         Text(
-            "Данные: dev.uust-time.ru\nПрототип 0.1 · Compose Multiplatform",
+            "Данные: dev.uust-time.ru\nВерсия $version · Compose Multiplatform",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
