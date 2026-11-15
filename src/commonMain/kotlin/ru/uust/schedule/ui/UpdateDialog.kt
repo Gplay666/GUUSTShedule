@@ -63,7 +63,9 @@ fun UpdateDialog(
             systemAccent = systemAccent,
         ) {
             Surface(
-                modifier = Modifier.widthIn(min = 380.dp, max = 560.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 560.dp),
                 shape = RoundedCornerShape(32.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 tonalElevation = 0.dp,

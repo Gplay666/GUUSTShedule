@@ -108,6 +108,16 @@ class UpdateState(
                         }
                     }
                 }
+
+                // Desktop exits the process after starting the update helper.
+                // Android returns after opening the system installer, so close
+                // the dialog and let the installer take over.
+                if (isDownloading) {
+                    isDownloading = false
+                    progress = null
+                    statusMessage = ""
+                    visible = false
+                }
             } catch (throwable: Throwable) {
                 if (throwable is CancellationException) throw throwable
                 println("UUST: update install failed: ${throwable.message}")

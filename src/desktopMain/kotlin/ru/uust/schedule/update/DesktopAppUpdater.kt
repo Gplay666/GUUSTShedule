@@ -6,8 +6,6 @@ import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import ru.uust.schedule.data.createHttpClient
 import java.awt.Desktop
 import java.net.URI
@@ -18,10 +16,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
 import kotlin.system.exitProcess
-
-private const val REPOSITORY = "Gplay666/GUUSTShedule"
-private const val LATEST_RELEASE_URL =
-    "https://api.github.com/repos/$REPOSITORY/releases/latest"
 
 private val isWindows = System.getProperty("os.name").orEmpty()
     .startsWith("Windows", ignoreCase = true)
@@ -85,6 +79,9 @@ private class DesktopAppUpdater : AppUpdater {
             UpdateInstallKind.AppImage -> installAppImage(update, onProgress)
             UpdateInstallKind.WindowsInstaller -> installWindows(update, portable = false, onProgress)
             UpdateInstallKind.WindowsPortable -> installWindows(update, portable = true, onProgress)
+            UpdateInstallKind.AndroidApk -> throw UpdateException(
+                "Обновление APK доступно только на Android.",
+            )
             UpdateInstallKind.Manual -> throw UpdateException(
                 "Для этой системы доступно только ручное обновление.",
             )
@@ -408,21 +405,3 @@ private class DesktopAppUpdater : AppUpdater {
         val supportsOneClick: Boolean,
     )
 }
-
-@Serializable
-private data class GitHubRelease(
-    @SerialName("tag_name") val tagName: String,
-    val name: String? = null,
-    val body: String? = null,
-    @SerialName("html_url") val htmlUrl: String,
-    val draft: Boolean = false,
-    val prerelease: Boolean = false,
-    val assets: List<GitHubAsset> = emptyList(),
-)
-
-@Serializable
-private data class GitHubAsset(
-    val name: String,
-    @SerialName("browser_download_url") val downloadUrl: String,
-    val size: Long = 0,
-)

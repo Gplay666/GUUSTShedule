@@ -1,7 +1,7 @@
 package ru.uust.schedule.update
 
 /**
- * A release published on GitHub that can update the desktop application.
+ * A release published on GitHub that can update the application.
  */
 data class UpdateInfo(
     val version: String,
@@ -20,14 +20,15 @@ enum class UpdateInstallKind {
     AppImage,
     WindowsInstaller,
     WindowsPortable,
+    AndroidApk,
     Manual,
 }
 
 class UpdateException(message: String) : Exception(message)
 
 /**
- * Platform updater. Android has no implementation because updates are only
- * distributed for desktop platforms.
+ * Platform updater: replaces AppImage or Windows builds on desktop and opens
+ * the system APK installer on Android.
  */
 interface AppUpdater {
     suspend fun check(currentVersion: String): UpdateInfo?
