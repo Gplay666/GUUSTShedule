@@ -26,39 +26,46 @@ class ScheduleRepository(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private val groupsMutex = Mutex()
+    private val teachersMutex = Mutex()
     private val scheduleMutex = Mutex()
 
     private var groupsCache: List<Group>? = null
-    private val scheduleCache = mutableMapOf<Int, List<Lesson>>()
+    private var teachersCache: List<Teacher>? = null
+    private val scheduleCache = mutableMapOf<SelectedTarget, List<Lesson>>()
 
-    private var selectedGroupIdCache: Int? = null
-    private var selectedGroupIdLoaded = false
+    private var selectedTargetCache: SelectedTarget? = null
+    private var selectedTargetLoaded = false
 
     suspend fun cachedGroups(): List<Group>? {
         groupsCache?.let { return it }
         return withContext(ioDispatcher) { cache.loadGroups() }?.also { groupsCache = it }
     }
 
-    suspend fun cachedSchedule(groupId: Int): List<Lesson>? {
-        scheduleCache[groupId]?.let { return it }
-        return withContext(ioDispatcher) { cache.loadSchedule(groupId) }
-            ?.also { scheduleCache[groupId] = it }
+    suspend fun cachedTeachers(): List<Teacher>? {
+        teachersCache?.let { return it }
+        return withContext(ioDispatcher) { cache.loadTeachers() }?.also { teachersCache = it }
     }
 
-    suspend fun cachedSelectedGroupId(): Int? {
-        if (selectedGroupIdLoaded) return selectedGroupIdCache
-        val loaded = withContext(ioDispatcher) { cache.loadSelectedGroupId() }
-        selectedGroupIdCache = loaded
-        selectedGroupIdLoaded = true
+    suspend fun cachedSchedule(target: SelectedTarget): List<Lesson>? {
+        scheduleCache[target]?.let { return it }
+        return withContext(ioDispatcher) { cache.loadSchedule(target) }
+            ?.also { scheduleCache[target] = it }
+    }
+
+    suspend fun cachedSelectedTarget(): SelectedTarget? {
+        if (selectedTargetLoaded) return selectedTargetCache
+        val loaded = withContext(ioDispatcher) { cache.loadSelectedTarget() }
+        selectedTargetCache = loaded
+        selectedTargetLoaded = true
         return loaded
     }
 
-    fun rememberSelectedGroup(groupId: Int?) {
-        selectedGroupIdCache = groupId
-        selectedGroupIdLoaded = true
+    fun rememberSelectedTarget(target: SelectedTarget?) {
+        selectedTargetCache = target
+        selectedTargetLoaded = true
         // The selection file is tiny; keeping this synchronous avoids making
         // every caller launch a separate coroutine for a few bytes.
-        cache.saveSelectedGroupId(groupId)
+        cache.saveSelectedTarget(target)
     }
 
     suspend fun loadGroups(
@@ -120,26 +127,84 @@ class ScheduleRepository(
         }
     }
 
+    suspend fun loadTeachers(
+        forceRefresh: Boolean = false,
+        allowNetwork: Boolean = true,
+    ): LoadResult<List<Teacher>> {
+        teachersMutex.lock()
+        try {
+            if (!forceRefresh) {
+                teachersCache?.let { return LoadResult(it, fromCache = false) }
+            }
+
+            val cached = teachersCache
+                ?: withContext(ioDispatcher) { cache.loadTeachers() }?.also { teachersCache = it }
+
+            if (!allowNetwork) {
+                if (cached != null) {
+                    return LoadResult(cached, fromCache = true)
+                }
+                throw OfflineCacheMissException("Нет сохранённого списка преподавателей")
+            }
+
+            if (!networkAvailable()) {
+                if (cached != null) {
+                    return LoadResult(cached, fromCache = true, networkFailed = true)
+                }
+                throw OfflineCacheMissException("Нет подключения к интернету")
+            }
+
+            try {
+                val teachers = withContext(ioDispatcher) {
+                    val loaded = client
+                        .get("$API_BASE/teachers") {
+                            parameter("site", "schedule")
+                        }
+                        .body<Map<String, TeacherDto>>()
+                        .values
+                        .map { it.toTeacher() }
+                        .sortedWith(
+                            compareBy<Teacher> { it.title.lowercase() }
+                                .thenBy { it.id },
+                        )
+                    cache.saveTeachers(loaded)
+                    loaded
+                }
+
+                teachersCache = teachers
+                return LoadResult(teachers, fromCache = false)
+            } catch (throwable: Throwable) {
+                if (throwable is CancellationException) throw throwable
+                if (cached != null) {
+                    return LoadResult(cached, fromCache = true, networkFailed = true)
+                }
+                throw throwable
+            }
+        } finally {
+            teachersMutex.unlock()
+        }
+    }
+
     suspend fun loadSchedule(
-        groupId: Int,
+        target: SelectedTarget,
         forceRefresh: Boolean = false,
         allowNetwork: Boolean = true,
     ): LoadResult<List<Lesson>> {
         scheduleMutex.lock()
         try {
             if (!forceRefresh) {
-                scheduleCache[groupId]?.let { return LoadResult(it, fromCache = false) }
+                scheduleCache[target]?.let { return LoadResult(it, fromCache = false) }
             }
 
-            val cached = scheduleCache[groupId]
-                ?: withContext(ioDispatcher) { cache.loadSchedule(groupId) }
-                    ?.also { scheduleCache[groupId] = it }
+            val cached = scheduleCache[target]
+                ?: withContext(ioDispatcher) { cache.loadSchedule(target) }
+                    ?.also { scheduleCache[target] = it }
 
             if (!allowNetwork) {
                 if (cached != null) {
                     return LoadResult(cached, fromCache = true)
                 }
-                throw OfflineCacheMissException("Расписание этой группы не сохранено")
+                throw OfflineCacheMissException("Расписание ${target.ownerGenitive()} не сохранено")
             }
 
             if (!networkAvailable()) {
@@ -152,11 +217,19 @@ class ScheduleRepository(
             try {
                 val lessons = withContext(ioDispatcher) {
                     val loaded = client
-                        .get("$API_BASE/schedule/0/$groupId/semester/$SEMESTER") {
+                        .get(
+                            "$API_BASE/schedule/${target.kind.scheduleType}/${target.id}" +
+                                "/semester/$SEMESTER",
+                        ) {
                             parameter("site", "schedule")
                         }
                         .body<List<LessonDto>>()
-                        .mapIndexedNotNull { index, dto -> dto.toLesson(index) }
+                        .mapIndexedNotNull { index, dto ->
+                            dto.toLesson(
+                                sequence = index,
+                                includeGroup = target.kind == TargetKind.Teacher,
+                            )
+                        }
                         .map { lesson -> lesson to lesson.subject.lowercase() }
                         .sortedWith(
                             compareBy<Pair<Lesson, String>> { it.first.weekday }
@@ -164,11 +237,11 @@ class ScheduleRepository(
                                 .thenBy { it.second },
                         )
                         .map { it.first }
-                    cache.saveSchedule(groupId, loaded)
+                    cache.saveSchedule(target, loaded)
                     loaded
                 }
 
-                scheduleCache[groupId] = lessons
+                scheduleCache[target] = lessons
                 return LoadResult(lessons, fromCache = false)
             } catch (throwable: Throwable) {
                 if (throwable is CancellationException) throw throwable
@@ -180,5 +253,10 @@ class ScheduleRepository(
         } finally {
             scheduleMutex.unlock()
         }
+    }
+
+    private fun SelectedTarget.ownerGenitive(): String = when (kind) {
+        TargetKind.Group -> "этой группы"
+        TargetKind.Teacher -> "этого преподавателя"
     }
 }

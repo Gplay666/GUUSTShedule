@@ -84,7 +84,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import ru.uust.schedule.data.GroupTarget
 import ru.uust.schedule.data.ScheduleRepository
+import ru.uust.schedule.data.TeacherTarget
 import ru.uust.schedule.util.formatFullDate
 import ru.uust.schedule.util.formatShortDate
 
@@ -180,7 +182,7 @@ fun ScheduleApp() {
                                 Sidebar(
                                     state = state,
                                     modifier = Modifier.fillMaxSize(),
-                                    onGroupSelected = {
+                                    onTargetSelected = {
                                         scope.launch { drawerState.close() }
                                     },
                                     onClose = {
@@ -227,7 +229,7 @@ fun ScheduleApp() {
 private fun Sidebar(
     state: ScheduleState,
     modifier: Modifier = Modifier,
-    onGroupSelected: (() -> Unit)? = null,
+    onTargetSelected: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
 ) {
     Box(
@@ -253,8 +255,8 @@ private fun Sidebar(
                 verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
                 BrandMark()
-                GroupSearch(state, onGroupSelected = onGroupSelected)
-                SelectedGroupCard(state)
+                TargetSearch(state, onTargetSelected = onTargetSelected)
+                SelectedTargetCard(state)
                 Spacer(Modifier.height(8.dp))
                 SidebarFooter(state)
             }
@@ -326,7 +328,7 @@ private fun SidebarFooter(state: ScheduleState) {
         )
         TextButton(
             onClick = { state.loadSchedule(forceRefresh = true) },
-            enabled = state.selectedGroup != null && !state.isLoadingSchedule,
+            enabled = state.selectedTarget != null && !state.isLoadingSchedule,
             contentPadding = PaddingValues(horizontal = 0.dp),
         ) {
             Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -346,7 +348,7 @@ private fun CompactTopBar(
     state: ScheduleState,
     onOpenMenu: () -> Unit = {},
 ) {
-    val group = state.selectedGroup
+    val target = state.selectedTarget
 
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column {
@@ -360,12 +362,12 @@ private fun CompactTopBar(
                 MenuButton(onClick = onOpenMenu)
                 Column(Modifier.weight(1f)) {
                     AnimatedContent(
-                        targetState = group?.title ?: "Расписание",
+                        targetState = target?.title ?: "Расписание",
                         transitionSpec = {
                             (fadeIn(tween(220)) + slideInVertically { it / 8 }) togetherWith
                                 fadeOut(tween(120))
                         },
-                        label = "compactGroupTitle",
+                        label = "compactTargetTitle",
                     ) { title ->
                         Text(
                             title,
@@ -375,17 +377,22 @@ private fun CompactTopBar(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (group != null) {
+                    if (target != null) {
                         Spacer(Modifier.height(4.dp))
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            if (group.faculty.isNotBlank()) {
-                                HeaderPill(group.faculty)
-                            }
-                            group.course?.let {
-                                HeaderPill("$it курс")
+                            when (target) {
+                                is GroupTarget -> {
+                                    if (target.group.faculty.isNotBlank()) {
+                                        HeaderPill(target.group.faculty)
+                                    }
+                                    target.group.course?.let {
+                                        HeaderPill("$it курс")
+                                    }
+                                }
+                                is TeacherTarget -> HeaderPill("Преподаватель")
                             }
                             if (state.lessons.isNotEmpty()) {
                                 HeaderPill(
@@ -419,9 +426,9 @@ private fun ScheduleContent(
 
             val error = state.error
             when {
-                state.isLoadingGroups && state.selectedGroup == null -> {
+                state.isLoadingCatalog && state.selectedTarget == null -> {
                     LoadingState(
-                        message = "Загружаем группы…",
+                        message = "Загружаем группы и преподавателей…",
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -441,13 +448,13 @@ private fun ScheduleContent(
                     )
                 }
 
-                state.selectedGroup == null -> {
+                state.selectedTarget == null -> {
                     EmptyState(
-                        title = "Выберите группу",
+                        title = "Выберите группу или преподавателя",
                         message = if (showHeader) {
-                            "Найдите свою группу в поиске, чтобы увидеть расписание."
+                            "Найдите группу или преподавателя в поиске, чтобы увидеть расписание."
                         } else {
-                            "Откройте меню и найдите свою группу."
+                            "Откройте меню и выберите группу или преподавателя."
                         },
                         modifier = Modifier.weight(1f),
                     )
@@ -502,7 +509,7 @@ private fun ScheduleHeader(
     compact: Boolean,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val group = state.selectedGroup
+    val target = state.selectedTarget
 
     Box(
         modifier = Modifier
@@ -546,12 +553,12 @@ private fun ScheduleHeader(
                     )
                     Spacer(Modifier.height(4.dp))
                     AnimatedContent(
-                        targetState = group?.title ?: "Выберите группу",
+                        targetState = target?.title ?: "Выберите группу или преподавателя",
                         transitionSpec = {
                             (fadeIn(tween(220)) + slideInVertically { it / 8 }) togetherWith
                                 fadeOut(tween(120))
                         },
-                        label = "headerGroup",
+                        label = "headerTarget",
                     ) { title ->
                         Text(
                             title,
@@ -565,16 +572,31 @@ private fun ScheduleHeader(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    if (target is TeacherTarget && target.subtitle.isNotBlank()) {
+                        Text(
+                            target.subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Spacer(Modifier.height(6.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        group?.faculty?.takeIf { it.isNotBlank() }?.let {
-                            HeaderPill(it)
-                        }
-                        group?.course?.let {
-                            HeaderPill("$it курс")
+                        when (target) {
+                            is GroupTarget -> {
+                                target.group.faculty.takeIf { it.isNotBlank() }?.let {
+                                    HeaderPill(it)
+                                }
+                                target.group.course?.let {
+                                    HeaderPill("$it курс")
+                                }
+                            }
+                            is TeacherTarget -> HeaderPill("Преподаватель")
+                            null -> Unit
                         }
                         if (state.lessons.isNotEmpty()) {
                             HeaderPill(
@@ -646,7 +668,10 @@ private fun DesktopTimetable(
 @Composable
 private fun TableNotice(state: ScheduleState) {
     val message = if (state.lessons.isEmpty()) {
-        "Для этой группы пока нет занятий"
+        when (state.selectedTarget) {
+            is TeacherTarget -> "У этого преподавателя пока нет занятий"
+            else -> "Для этой группы пока нет занятий"
+        }
     } else {
         "На этой неделе занятий нет"
     }
@@ -671,7 +696,7 @@ private fun PortraitScheduleContent(
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val group = state.selectedGroup
+    val target = state.selectedTarget
     val error = state.error
     val listState = rememberLazyListState()
     var headerHeightPx by remember { mutableStateOf(0) }
@@ -679,7 +704,7 @@ private fun PortraitScheduleContent(
     // otherwise every scrolled pixel recomposes the whole portrait screen.
     val collapseFraction: () -> Float = {
         when {
-            group == null -> 0f
+            target == null -> 0f
             listState.firstVisibleItemIndex > 0 -> 1f
             headerHeightPx <= 0 -> 0f
             else -> (listState.firstVisibleItemScrollOffset.toFloat() / headerHeightPx)
@@ -689,7 +714,7 @@ private fun PortraitScheduleContent(
 
     Column(modifier.fillMaxSize()) {
         PortraitTopBar(
-            title = group?.title ?: "Расписание",
+            title = target?.title ?: "Расписание",
             titleAlpha = collapseFraction,
             onOpenMenu = onOpenMenu,
         )
@@ -705,17 +730,17 @@ private fun PortraitScheduleContent(
         }
 
         when {
-            state.isLoadingGroups && group == null -> {
+            state.isLoadingCatalog && target == null -> {
                 LoadingState(
-                    message = "Загружаем группы…",
+                    message = "Загружаем группы и преподавателей…",
                     modifier = Modifier.weight(1f),
                 )
             }
 
             error != null && state.lessons.isEmpty() && !state.isLoadingSchedule -> {
                 Column(Modifier.weight(1f)) {
-                    if (group != null) {
-                        PortraitGroupHeader(state)
+                    if (target != null) {
+                        PortraitTargetHeader(state)
                     }
                     ErrorState(
                         message = error,
@@ -725,17 +750,17 @@ private fun PortraitScheduleContent(
                 }
             }
 
-            group == null -> {
+            target == null -> {
                 EmptyState(
-                    title = "Выберите группу",
-                    message = "Откройте меню и найдите свою группу.",
+                    title = "Выберите группу или преподавателя",
+                    message = "Откройте меню и выберите группу или преподавателя.",
                     modifier = Modifier.weight(1f),
                 )
             }
 
             state.isLoadingSchedule && state.lessons.isEmpty() -> {
                 Column(Modifier.weight(1f)) {
-                    PortraitGroupHeader(state)
+                    PortraitTargetHeader(state)
                     LoadingState(
                         message = "Загружаем расписание…",
                         modifier = Modifier.weight(1f),
@@ -798,12 +823,12 @@ private fun PortraitTopBar(
 }
 
 @Composable
-private fun PortraitGroupHeader(
+private fun PortraitTargetHeader(
     state: ScheduleState,
     collapseFraction: () -> Float = { 0f },
     modifier: Modifier = Modifier,
 ) {
-    val group = state.selectedGroup
+    val target = state.selectedTarget
 
     Column(
         modifier = modifier
@@ -812,12 +837,12 @@ private fun PortraitGroupHeader(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         AnimatedContent(
-            targetState = group?.title ?: "Выберите группу",
+            targetState = target?.title ?: "Выберите группу или преподавателя",
             transitionSpec = {
                 (fadeIn(tween(220)) + slideInVertically { it / 8 }) togetherWith
                     fadeOut(tween(120))
             },
-            label = "portraitGroupTitle",
+            label = "portraitTargetTitle",
         ) { title ->
             Text(
                 title,
@@ -827,8 +852,21 @@ private fun PortraitGroupHeader(
                     scaleY = scale
                     transformOrigin = TransformOrigin(0f, 0f)
                 },
-                style = MaterialTheme.typography.headlineLarge,
+                style = if (target is TeacherTarget) {
+                    MaterialTheme.typography.headlineMedium
+                } else {
+                    MaterialTheme.typography.headlineLarge
+                },
                 fontWeight = FontWeight.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (target is TeacherTarget && target.subtitle.isNotBlank()) {
+            Text(
+                target.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -837,11 +875,17 @@ private fun PortraitGroupHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            group?.faculty?.takeIf { it.isNotBlank() }?.let {
-                HeaderPill(it)
-            }
-            group?.course?.let {
-                HeaderPill("$it курс")
+            when (target) {
+                is GroupTarget -> {
+                    target.group.faculty.takeIf { it.isNotBlank() }?.let {
+                        HeaderPill(it)
+                    }
+                    target.group.course?.let {
+                        HeaderPill("$it курс")
+                    }
+                }
+                is TeacherTarget -> HeaderPill("Преподаватель")
+                null -> Unit
             }
             if (state.lessons.isNotEmpty()) {
                 HeaderPill(
@@ -883,7 +927,7 @@ private fun PortraitScheduleList(
         }
     }
 
-    LaunchedEffect(state.selectedGroup?.id, state.selectedWeek, selectedDay) {
+    LaunchedEffect(state.selectedTarget?.selection, state.selectedWeek, selectedDay) {
         if (listState.layoutInfo.totalItemsCount > 0) {
             listState.scrollToItem(0)
         }
@@ -894,8 +938,8 @@ private fun PortraitScheduleList(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
-        item(key = "portrait-group-header") {
-            PortraitGroupHeader(
+        item(key = "portrait-target-header") {
+            PortraitTargetHeader(
                 state = state,
                 collapseFraction = collapseFraction,
                 modifier = Modifier.onGloballyPositioned {
@@ -1173,7 +1217,12 @@ private fun PortraitDayPage(
         EmptyState(
             title = "В этот день занятий нет",
             message = if (state.lessons.isEmpty()) {
-                "Для этой группы пока нет занятий. Попробуйте обновить данные."
+                when (state.selectedTarget) {
+                    is TeacherTarget ->
+                        "У этого преподавателя пока нет занятий. Попробуйте обновить данные."
+                    else ->
+                        "Для этой группы пока нет занятий. Попробуйте обновить данные."
+                }
             } else {
                 "Уфа сегодня гуляет."
             },

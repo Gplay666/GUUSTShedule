@@ -10,14 +10,22 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import ru.uust.schedule.data.DEFAULT_GROUP_ID
 import ru.uust.schedule.data.Group
+import ru.uust.schedule.data.GroupTarget
 import ru.uust.schedule.data.Lesson
 import ru.uust.schedule.data.OfflineCacheMissException
 import ru.uust.schedule.data.ScheduleRepository
+import ru.uust.schedule.data.ScheduleTarget
+import ru.uust.schedule.data.SelectedTarget
+import ru.uust.schedule.data.TargetKind
+import ru.uust.schedule.data.Teacher
+import ru.uust.schedule.data.TeacherTarget
 import ru.uust.schedule.util.AcademicCalendar
 import ru.uust.schedule.util.currentAcademicWeek
 import ru.uust.schedule.util.currentWeekday
@@ -34,10 +42,13 @@ class ScheduleState(
     var groups by mutableStateOf<List<Group>>(emptyList())
         private set
 
+    var teachers by mutableStateOf<List<Teacher>>(emptyList())
+        private set
+
     var query by mutableStateOf("")
         private set
 
-    var selectedGroup by mutableStateOf<Group?>(null)
+    var selectedTarget by mutableStateOf<ScheduleTarget?>(null)
         private set
 
     var lessons by mutableStateOf<List<Lesson>>(emptyList())
@@ -52,7 +63,7 @@ class ScheduleState(
     var selectedDay by mutableStateOf(if (todayWeekday in 1..6) todayWeekday else 1)
         private set
 
-    var isLoadingGroups by mutableStateOf(true)
+    var isLoadingCatalog by mutableStateOf(true)
         private set
 
     var isLoadingSchedule by mutableStateOf(false)
@@ -90,10 +101,10 @@ class ScheduleState(
     private var weekSelectionInitialized = false
     private var isInitializing = false
 
-    private data class GroupSearchEntry(
-        val group: Group,
+    private data class CatalogSearchEntry(
+        val target: ScheduleTarget,
         val titleLower: String,
-        val facultyLower: String,
+        val subtitleLower: String,
         val idText: String,
     )
 
@@ -102,40 +113,69 @@ class ScheduleState(
     }
 
     /**
-     * Lower-casing is done once when the group list changes. The previous
-     * implementation lower-cased every title again for every sort comparison.
+     * Both catalogs share one index so the search field returns groups and
+     * teachers together, as requested. Lower-casing happens only when either
+     * catalog changes, not on every keystroke.
      */
-    private val groupSearchIndex by derivedStateOf {
-        groups.map { group ->
-            GroupSearchEntry(
-                group = group,
-                titleLower = group.title.lowercase(),
-                facultyLower = group.faculty.lowercase(),
-                idText = group.id.toString(),
-            )
+    private val catalogSearchIndex by derivedStateOf {
+        buildList(groups.size + teachers.size) {
+            groups.forEach { group ->
+                add(
+                    CatalogSearchEntry(
+                        target = GroupTarget(group),
+                        titleLower = group.title.lowercase(),
+                        subtitleLower = group.subtitle.lowercase(),
+                        idText = group.id.toString(),
+                    ),
+                )
+            }
+            teachers.forEach { teacher ->
+                add(
+                    CatalogSearchEntry(
+                        target = TeacherTarget(teacher),
+                        titleLower = teacher.title.lowercase(),
+                        subtitleLower = teacher.department.lowercase(),
+                        idText = teacher.id.toString(),
+                    ),
+                )
+            }
         }
     }
 
-    val filteredGroups: List<Group> by derivedStateOf {
+    val filteredTargets: List<ScheduleTarget> by derivedStateOf {
         val text = query.trim()
         if (text.isEmpty()) {
             emptyList()
         } else {
             val needle = text.lowercase()
-            groupSearchIndex.asSequence()
-                .filter { entry ->
-                    entry.titleLower.contains(needle) ||
-                        entry.facultyLower.contains(needle) ||
-                        entry.idText.contains(text)
+            catalogSearchIndex.asSequence()
+                .mapNotNull { entry ->
+                    entry.matchScore(needle, text)?.let { score -> entry to score }
                 }
                 .sortedWith(
-                    compareBy<GroupSearchEntry> { it.group.title.length }
-                        .thenBy { it.titleLower },
+                    compareBy<Pair<CatalogSearchEntry, Int>> { it.second }
+                        .thenBy { it.first.target.title.length }
+                        .thenBy { it.first.titleLower },
                 )
                 .take(24)
-                .map { it.group }
+                .map { it.first.target }
                 .toList()
         }
+    }
+
+    private fun CatalogSearchEntry.matchScore(needle: String, rawQuery: String): Int? = when {
+        titleLower == needle -> 0
+        titleLower.startsWith(needle) -> 1
+        titleLower.contains(" $needle") -> 2
+        titleLower.contains(needle) -> 3
+        subtitleLower.contains(needle) -> 4
+        idText.contains(rawQuery) -> 5
+        else -> null
+    }
+
+    fun isSelected(target: ScheduleTarget): Boolean {
+        val current = selectedTarget ?: return false
+        return current.kind == target.kind && current.id == target.id
     }
 
     val weeks: List<Int> by derivedStateOf {
@@ -177,82 +217,117 @@ class ScheduleState(
 
     suspend fun initialize() {
         if (isInitializing) return
-        if (groups.isNotEmpty() && selectedGroup != null) {
+        if (groups.isNotEmpty() && teachers.isNotEmpty() && selectedTarget != null) {
             loadSchedule()
             return
         }
 
         isInitializing = true
-        isLoadingGroups = true
+        isLoadingCatalog = true
         error = null
         isOffline = false
 
         try {
-            // Show the last successful local copy immediately, then refresh it
-            // only if a network interface is available.
+            // Show the last successful local copy immediately, then refresh both
+            // catalogs in parallel. One failing catalog must not break the other.
             applyCachedSnapshot()
-            isLoadingGroups = groups.isEmpty()
+            isLoadingCatalog = groups.isEmpty() && teachers.isEmpty()
 
-            val result = repository.loadGroups(
-                forceRefresh = true,
-                allowNetwork = true,
-            )
-            val previousGroupId = selectedGroup?.id
-            groups = result.data
-            if (result.networkFailed) {
+            val (groupsResult, teachersResult) = coroutineScope {
+                val groupsDeferred = async {
+                    loadCatching { repository.loadGroups(forceRefresh = true) }
+                }
+                val teachersDeferred = async {
+                    loadCatching { repository.loadTeachers(forceRefresh = true) }
+                }
+                groupsDeferred.await() to teachersDeferred.await()
+            }
+
+            groupsResult.getOrNull()?.let { result -> groups = result.data }
+            teachersResult.getOrNull()?.let { result -> teachers = result.data }
+
+            val anyFailure = groupsResult.isFailure ||
+                teachersResult.isFailure ||
+                groupsResult.getOrNull()?.networkFailed == true ||
+                teachersResult.getOrNull()?.networkFailed == true
+            if (anyFailure) {
                 isOffline = true
             }
 
-            val preferredId = repository.cachedSelectedGroupId()
-            val preferred = groups.find { it.id == preferredId }
-                ?: groups.find { it.id == DEFAULT_GROUP_ID }
-                ?: groups.firstOrNull()
-
-            if (preferred?.id != previousGroupId) {
+            val previousTarget = selectedTarget?.selection
+            val preferred = resolveTarget(previousTarget ?: repository.cachedSelectedTarget())
+            if (preferred?.selection != previousTarget) {
                 lessons = emptyList()
                 selectedWeek = null
                 weekSelectionInitialized = false
             }
-            selectedGroup = preferred
+            selectedTarget = preferred
             query = preferred?.title.orEmpty()
             if (preferred != null) {
-                repository.rememberSelectedGroup(preferred.id)
+                repository.rememberSelectedTarget(preferred.selection)
+            }
+
+            if (groups.isEmpty() && teachers.isEmpty()) {
+                error = "Нет подключения к интернету и нет сохранённого списка групп " +
+                    "и преподавателей. Подключитесь и нажмите «Обновить»."
             }
         } catch (throwable: Throwable) {
             if (throwable is CancellationException) throw throwable
-            println("UUST: failed to load groups: ${throwable.message}")
+            println("UUST: failed to load catalogs: ${throwable.message}")
             isOffline = true
-            if (groups.isEmpty()) {
-                error = "Нет подключения к интернету и нет сохранённого списка групп. " +
-                    "Подключитесь и нажмите «Обновить»."
+            if (groups.isEmpty() && teachers.isEmpty()) {
+                error = "Нет подключения к интернету и нет сохранённого списка групп " +
+                    "и преподавателей. Подключитесь и нажмите «Обновить»."
             }
         } finally {
-            isLoadingGroups = false
+            isLoadingCatalog = false
             isInitializing = false
         }
 
-        if (selectedGroup != null) {
-            loadSchedule(
-                forceRefresh = true,
-                allowNetwork = !isOffline,
-            )
+        if (selectedTarget != null) {
+            loadSchedule(forceRefresh = true)
         }
     }
 
+    private suspend fun <T> loadCatching(block: suspend () -> T): Result<T> = try {
+        Result.success(block())
+    } catch (throwable: Throwable) {
+        if (throwable is CancellationException) throw throwable
+        Result.failure(throwable)
+    }
+
     private suspend fun applyCachedSnapshot() {
-        val cachedGroups = repository.cachedGroups() ?: return
-        groups = cachedGroups
+        val cachedGroups = repository.cachedGroups()
+        val cachedTeachers = repository.cachedTeachers()
+        if (cachedGroups == null && cachedTeachers == null) return
 
-        val preferredId = repository.cachedSelectedGroupId()
-        val preferred = cachedGroups.find { it.id == preferredId }
-            ?: cachedGroups.find { it.id == DEFAULT_GROUP_ID }
-            ?: cachedGroups.firstOrNull()
+        if (cachedGroups != null) groups = cachedGroups
+        if (cachedTeachers != null) teachers = cachedTeachers
 
-        selectedGroup = preferred
+        val preferred = resolveTarget(repository.cachedSelectedTarget())
+        selectedTarget = preferred
         query = preferred?.title.orEmpty()
         if (preferred != null) {
-            repository.cachedSchedule(preferred.id)?.let(::applyLessons)
+            repository.cachedSchedule(preferred.selection)?.let(::applyLessons)
         }
+    }
+
+    private fun resolveTarget(selection: SelectedTarget?): ScheduleTarget? {
+        if (selection != null) {
+            val found = when (selection.kind) {
+                TargetKind.Group -> groups
+                    .firstOrNull { it.id == selection.id }
+                    ?.let(::GroupTarget)
+                TargetKind.Teacher -> teachers
+                    .firstOrNull { it.id == selection.id }
+                    ?.let(::TeacherTarget)
+            }
+            if (found != null) return found
+        }
+
+        return groups.firstOrNull { it.id == DEFAULT_GROUP_ID }?.let(::GroupTarget)
+            ?: groups.firstOrNull()?.let(::GroupTarget)
+            ?: teachers.firstOrNull()?.let(::TeacherTarget)
     }
 
     private fun applyLessons(loaded: List<Lesson>) {
@@ -272,16 +347,16 @@ class ScheduleState(
         }
     }
 
-    fun selectGroup(group: Group) {
-        query = group.title
-        if (selectedGroup?.id == group.id) return
+    fun selectTarget(target: ScheduleTarget) {
+        query = target.title
+        if (isSelected(target)) return
 
-        selectedGroup = group
+        selectedTarget = target
         lessons = emptyList()
         selectedWeek = null
         weekSelectionInitialized = false
         selectedDay = if (todayWeekday in 1..6) todayWeekday else 1
-        repository.rememberSelectedGroup(group.id)
+        repository.rememberSelectedTarget(target.selection)
         loadSchedule()
     }
 
@@ -289,7 +364,7 @@ class ScheduleState(
         forceRefresh: Boolean = false,
         allowNetwork: Boolean = true,
     ) {
-        val group = selectedGroup ?: return
+        val target = selectedTarget ?: return
         val requestId = ++scheduleRequest
 
         scheduleJob?.cancel()
@@ -301,9 +376,9 @@ class ScheduleState(
 
             try {
                 val result = repository.loadSchedule(
-                    groupId = group.id,
+                    target = target.selection,
                     forceRefresh = forceRefresh,
-                    allowNetwork = allowNetwork && (forceRefresh || !isOffline),
+                    allowNetwork = allowNetwork,
                 )
                 if (requestId == scheduleRequest) {
                     applyLessons(result.data)
@@ -318,8 +393,8 @@ class ScheduleState(
                 if (requestId == scheduleRequest) {
                     isOffline = true
                     error = if (throwable is OfflineCacheMissException) {
-                        "Нет подключения к интернету, а расписание этой группы не сохранено. " +
-                            "Подключитесь и нажмите «Обновить»."
+                        "Нет подключения к интернету, а расписание ${target.ownerPhrase()} " +
+                            "не сохранено. Подключитесь и нажмите «Обновить»."
                     } else {
                         "Не удалось загрузить расписание. Проверьте подключение к интернету."
                     }
@@ -330,6 +405,11 @@ class ScheduleState(
                 }
             }
         }
+    }
+
+    private fun ScheduleTarget.ownerPhrase(): String = when (this) {
+        is GroupTarget -> "этой группы"
+        is TeacherTarget -> "этого преподавателя"
     }
 
     fun selectWeek(week: Int?) {
@@ -397,7 +477,7 @@ class ScheduleState(
     }
 
     fun retry() {
-        if (groups.isEmpty()) {
+        if (groups.isEmpty() || teachers.isEmpty()) {
             scope.launch { initialize() }
         } else {
             loadSchedule(forceRefresh = true)

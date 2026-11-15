@@ -4,7 +4,7 @@
 
 ## О приложении
 
-Версия 0.4.1.
+Версия 0.4.2.
 
 Нативное приложение расписания УУНиТ на Kotlin Multiplatform и Compose Multiplatform.
 Собраны desktop-таргеты для Linux и Windows, а также Android-приложение; общий UI

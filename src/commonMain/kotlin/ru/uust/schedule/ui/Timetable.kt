@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -507,14 +508,23 @@ private fun LessonMetaRow(lesson: Lesson) {
             color = scheme.onSurfaceVariant,
             maxLines = 1,
         )
-        if (lesson.teacher.isNotBlank()) {
+        val secondary = lesson.group.ifBlank { lesson.teacher }
+        if (secondary.isNotBlank()) {
             Text(
                 "·",
                 style = MaterialTheme.typography.labelSmall,
                 color = scheme.onSurfaceVariant,
             )
+            if (lesson.group.isNotBlank()) {
+                Icon(
+                    Icons.Rounded.Groups,
+                    contentDescription = null,
+                    modifier = Modifier.size(11.dp),
+                    tint = scheme.onSurfaceVariant,
+                )
+            }
             Text(
-                lesson.teacher,
+                secondary,
                 style = MaterialTheme.typography.labelSmall,
                 color = scheme.onSurfaceVariant,
                 maxLines = 1,

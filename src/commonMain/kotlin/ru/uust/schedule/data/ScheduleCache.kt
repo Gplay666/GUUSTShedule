@@ -27,17 +27,41 @@ class ScheduleCache(
         write(GROUPS_FILE, GroupsCache(groups))
     }
 
-    fun loadSchedule(groupId: Int): List<Lesson>? =
-        read<ScheduleFile>(scheduleFile(groupId))?.lessons
+    fun loadTeachers(): List<Teacher>? = read<TeachersCache>(TEACHERS_FILE)?.teachers
 
-    fun saveSchedule(groupId: Int, lessons: List<Lesson>) {
-        write(scheduleFile(groupId), ScheduleFile(lessons))
+    fun saveTeachers(teachers: List<Teacher>) {
+        write(TEACHERS_FILE, TeachersCache(teachers))
     }
 
-    fun loadSelectedGroupId(): Int? = read<SelectionFile>(SELECTION_FILE)?.groupId
+    /** Group schedules keep the old filename, teacher schedules use their own. */
+    fun loadSchedule(target: SelectedTarget): List<Lesson>? =
+        read<ScheduleFile>(scheduleFile(target))?.lessons
 
-    fun saveSelectedGroupId(groupId: Int?) {
-        write(SELECTION_FILE, SelectionFile(groupId))
+    fun saveSchedule(target: SelectedTarget, lessons: List<Lesson>) {
+        write(scheduleFile(target), ScheduleFile(lessons))
+    }
+
+    fun loadSelectedTarget(): SelectedTarget? {
+        val file = read<SelectionFile>(SELECTION_FILE) ?: return null
+        val kind = file.targetType?.let { type ->
+            TargetKind.entries.firstOrNull { it.storageKey == type }
+        }
+        if (kind != null && file.targetId != null) {
+            return SelectedTarget(kind, file.targetId)
+        }
+        // selection.json written by <= 0.4.1 contains only groupId.
+        return file.groupId?.let { SelectedTarget(TargetKind.Group, it) }
+    }
+
+    fun saveSelectedTarget(target: SelectedTarget?) {
+        write(
+            SELECTION_FILE,
+            SelectionFile(
+                groupId = target?.takeIf { it.kind == TargetKind.Group }?.id,
+                targetType = target?.kind?.storageKey,
+                targetId = target?.id,
+            ),
+        )
     }
 
     private inline fun <reified T> read(name: String): T? = try {
@@ -55,10 +79,14 @@ class ScheduleCache(
         }
     }
 
-    private fun scheduleFile(groupId: Int): String = "schedule_$groupId.json"
+    private fun scheduleFile(target: SelectedTarget): String = when (target.kind) {
+        TargetKind.Group -> "schedule_${target.id}.json"
+        TargetKind.Teacher -> "teacher_schedule_${target.id}.json"
+    }
 
     private companion object {
         const val GROUPS_FILE = "groups.json"
+        const val TEACHERS_FILE = "teachers.json"
         const val SELECTION_FILE = "selection.json"
     }
 }
@@ -69,11 +97,19 @@ private data class GroupsCache(
 )
 
 @Serializable
+private data class TeachersCache(
+    val teachers: List<Teacher>,
+)
+
+@Serializable
 private data class ScheduleFile(
     val lessons: List<Lesson>,
 )
 
 @Serializable
 private data class SelectionFile(
+    /** Kept for compatibility with selection files written by 0.4.1 and older. */
     val groupId: Int? = null,
+    val targetType: String? = null,
+    val targetId: Int? = null,
 )

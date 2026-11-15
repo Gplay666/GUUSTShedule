@@ -62,6 +62,7 @@ import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.MeetingRoom
@@ -114,8 +115,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import ru.uust.schedule.data.Group
+import ru.uust.schedule.data.GroupTarget
 import ru.uust.schedule.data.Lesson
+import ru.uust.schedule.data.ScheduleTarget
+import ru.uust.schedule.data.TeacherTarget
 import ru.uust.schedule.util.formatWeekRange
 
 @Composable
@@ -196,16 +199,16 @@ fun BrandMark(
 }
 
 @Composable
-fun GroupSearch(
+fun TargetSearch(
     state: ScheduleState,
     modifier: Modifier = Modifier,
     showHint: Boolean = true,
     trailingActions: (@Composable () -> Unit)? = null,
-    onGroupSelected: (() -> Unit)? = null,
+    onTargetSelected: (() -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val showSuggestions = state.query.isNotBlank() &&
-        state.query.trim() != state.selectedGroup?.title
+        state.query.trim() != state.selectedTarget?.title
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -219,7 +222,7 @@ fun GroupSearch(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
-                placeholder = { Text("Найти группу", maxLines = 1) },
+                placeholder = { Text("Группа или преподаватель", maxLines = 1) },
                 leadingIcon = {
                     Icon(Icons.Rounded.Search, contentDescription = null)
                 },
@@ -233,10 +236,10 @@ fun GroupSearch(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
                     onSearch = {
-                        state.filteredGroups.firstOrNull()?.let {
-                            state.selectGroup(it)
+                        state.filteredTargets.firstOrNull()?.let {
+                            state.selectTarget(it)
                             focusManager.clearFocus()
-                            onGroupSelected?.invoke()
+                            onTargetSelected?.invoke()
                         }
                     }
                 ),
@@ -251,9 +254,15 @@ fun GroupSearch(
             trailingActions?.invoke()
         }
 
-        if (showHint && !showSuggestions && state.groups.isNotEmpty()) {
+        if (showHint && !showSuggestions &&
+            (state.groups.isNotEmpty() || state.teachers.isNotEmpty())
+        ) {
+            val counts = listOfNotNull(
+                state.groups.takeIf { it.isNotEmpty() }?.let { groupCountText(it.size) },
+                state.teachers.takeIf { it.isNotEmpty() }?.let { teacherCountText(it.size) },
+            )
             Text(
-                "${state.groups.size} групп · начните вводить название",
+                "${counts.joinToString(" · ")} · начните вводить название",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp),
@@ -265,7 +274,7 @@ fun GroupSearch(
             enter = fadeIn(tween(160)) + expandVertically(animationSpec = AppMotion.spatial()),
             exit = fadeOut(tween(100)) + shrinkVertically(animationSpec = AppMotion.spatial()),
         ) {
-            val filteredGroups = state.filteredGroups
+            val filteredTargets = state.filteredTargets
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -275,7 +284,7 @@ fun GroupSearch(
                     MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                 ),
             ) {
-                if (filteredGroups.isEmpty()) {
+                if (filteredTargets.isEmpty()) {
                     Column(
                         Modifier
                             .fillMaxWidth()
@@ -288,7 +297,7 @@ fun GroupSearch(
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            "Попробуйте название группы или факультет.",
+                            "Попробуйте название группы, ФИО преподавателя или кафедру.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -301,14 +310,17 @@ fun GroupSearch(
                         contentPadding = PaddingValues(8.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
-                        items(filteredGroups, key = { it.id }) { group ->
-                            GroupSuggestion(
-                                group = group,
-                                selected = state.selectedGroup?.id == group.id,
+                        items(
+                            filteredTargets,
+                            key = { "${it.kind.storageKey}:${it.id}" },
+                        ) { target ->
+                            TargetSuggestion(
+                                target = target,
+                                selected = state.isSelected(target),
                                 onClick = {
-                                    state.selectGroup(group)
+                                    state.selectTarget(target)
                                     focusManager.clearFocus()
-                                    onGroupSelected?.invoke()
+                                    onTargetSelected?.invoke()
                                 },
                             )
                         }
@@ -320,8 +332,8 @@ fun GroupSearch(
 }
 
 @Composable
-private fun GroupSuggestion(
-    group: Group,
+private fun TargetSuggestion(
+    target: ScheduleTarget,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -334,8 +346,24 @@ private fun GroupSuggestion(
         animationSpec = AppMotion.effects(),
         label = "suggestionBackground",
     )
-    val subtitle = group.subtitle
-    val initial = group.title.firstOrNull()?.uppercaseChar()?.toString().orEmpty()
+    val isTeacher = target is TeacherTarget
+    val subtitle = when (target) {
+        is GroupTarget -> target.subtitle
+        is TeacherTarget -> listOf("Преподаватель", target.subtitle)
+            .filter { it.isNotBlank() }
+            .joinToString(" · ")
+    }
+    val initial = target.title.firstOrNull()?.uppercaseChar()?.toString().orEmpty()
+    val avatarContainer = if (isTeacher) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.primaryContainer
+    }
+    val avatarContent = if (isTeacher) {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    } else {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    }
 
     Row(
         modifier = Modifier
@@ -349,21 +377,30 @@ private fun GroupSuggestion(
     ) {
         Surface(
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
+            color = avatarContainer,
             modifier = Modifier.size(36.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(
-                    initial,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
+                if (isTeacher) {
+                    Icon(
+                        Icons.Rounded.Person,
+                        contentDescription = null,
+                        tint = avatarContent,
+                        modifier = Modifier.size(19.dp),
+                    )
+                } else {
+                    Text(
+                        initial,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Black,
+                        color = avatarContent,
+                    )
+                }
             }
         }
         Column(Modifier.weight(1f)) {
             Text(
-                group.title,
+                target.title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -391,15 +428,20 @@ private fun GroupSuggestion(
 }
 
 @Composable
-fun SelectedGroupCard(
+fun SelectedTargetCard(
     state: ScheduleState,
     modifier: Modifier = Modifier,
 ) {
-    val group = state.selectedGroup
+    val target = state.selectedTarget
     val shape = MaterialTheme.shapes.extraLarge
     val primary = MaterialTheme.colorScheme.primary
     val tertiary = MaterialTheme.colorScheme.tertiary
     val onContainer = MaterialTheme.colorScheme.onPrimaryContainer
+    val label = when (target) {
+        is GroupTarget -> "ГРУППА"
+        is TeacherTarget -> "ПРЕПОДАВАТЕЛЬ"
+        null -> "ПОИСК"
+    }
 
     Box(
         modifier = modifier
@@ -428,22 +470,22 @@ fun SelectedGroupCard(
             }
             .padding(22.dp),
     ) {
-        if (group == null) {
+        if (target == null) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    "ГРУППА",
+                    label,
                     style = MaterialTheme.typography.labelSmall,
                     color = onContainer.copy(alpha = 0.7f),
                     letterSpacing = 1.5.sp,
                 )
                 Text(
-                    "Ещё не выбрана",
+                    "Ничего не выбрано",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = onContainer,
                 )
                 Text(
-                    "Найдите свою группу в поиске выше.",
+                    "Найдите группу или преподавателя в поиске выше.",
                     style = MaterialTheme.typography.bodySmall,
                     color = onContainer.copy(alpha = 0.8f),
                 )
@@ -452,7 +494,7 @@ fun SelectedGroupCard(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "ГРУППА",
+                        label,
                         style = MaterialTheme.typography.labelSmall,
                         color = onContainer.copy(alpha = 0.7f),
                         letterSpacing = 1.5.sp,
@@ -465,7 +507,11 @@ fun SelectedGroupCard(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                Icons.Rounded.CalendarMonth,
+                                if (target is TeacherTarget) {
+                                    Icons.Rounded.Person
+                                } else {
+                                    Icons.Rounded.CalendarMonth
+                                },
                                 contentDescription = null,
                                 tint = onContainer,
                                 modifier = Modifier.size(19.dp),
@@ -475,12 +521,12 @@ fun SelectedGroupCard(
                 }
 
                 AnimatedContent(
-                    targetState = group,
+                    targetState = target,
                     transitionSpec = {
                         (fadeIn(tween(220)) + slideInVertically { it / 6 }) togetherWith
                             fadeOut(tween(120))
                     },
-                    label = "selectedGroup",
+                    label = "selectedTarget",
                 ) { current ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
@@ -492,9 +538,16 @@ fun SelectedGroupCard(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            current.subtitle.ifBlank { "УУНиТ" },
+                            when (current) {
+                                is GroupTarget -> current.subtitle.ifBlank { "УУНиТ" }
+                                is TeacherTarget -> current.subtitle.ifBlank {
+                                    "Преподаватель УУНиТ"
+                                }
+                            },
                             style = MaterialTheme.typography.labelLarge,
                             color = onContainer.copy(alpha = 0.78f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -744,7 +797,7 @@ fun ThemeButton(state: ScheduleState) {
 fun RefreshButton(state: ScheduleState) {
     FilledTonalIconButton(
         onClick = { state.loadSchedule(forceRefresh = true) },
-        enabled = !state.isLoadingSchedule && state.selectedGroup != null,
+        enabled = !state.isLoadingSchedule && state.selectedTarget != null,
         modifier = Modifier.size(48.dp),
     ) {
         if (state.isLoadingSchedule) {
@@ -1459,7 +1512,11 @@ private fun LessonCard(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    InfoItem(Icons.Rounded.Person, lesson.teacher, compact)
+                    if (lesson.group.isNotBlank()) {
+                        InfoItem(Icons.Rounded.Groups, lesson.group, compact)
+                    } else {
+                        InfoItem(Icons.Rounded.Person, lesson.teacher, compact)
+                    }
                     InfoItem(Icons.Rounded.MeetingRoom, lesson.room, compact)
                 }
                 if (lesson.comment.isNotBlank()) {
@@ -1584,12 +1641,28 @@ fun weekdayShort(day: Int): String = when (day) {
 }
 
 fun lessonCountText(count: Int): String {
-    val mod10 = count % 10
-    val mod100 = count % 100
     val word = when {
-        mod10 == 1 && mod100 != 11 -> "занятие"
-        mod10 in 2..4 && mod100 !in 12..14 -> "занятия"
+        count % 10 == 1 && count % 100 != 11 -> "занятие"
+        count % 10 in 2..4 && count % 100 !in 12..14 -> "занятия"
         else -> "занятий"
+    }
+    return "$count $word"
+}
+
+private fun groupCountText(count: Int): String {
+    val word = when {
+        count % 10 == 1 && count % 100 != 11 -> "группа"
+        count % 10 in 2..4 && count % 100 !in 12..14 -> "группы"
+        else -> "групп"
+    }
+    return "$count $word"
+}
+
+private fun teacherCountText(count: Int): String {
+    val word = when {
+        count % 10 == 1 && count % 100 != 11 -> "преподаватель"
+        count % 10 in 2..4 && count % 100 !in 12..14 -> "преподавателя"
+        else -> "преподавателей"
     }
     return "$count $word"
 }
