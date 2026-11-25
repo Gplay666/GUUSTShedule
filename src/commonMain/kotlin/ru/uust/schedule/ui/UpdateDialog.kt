@@ -3,6 +3,7 @@ package ru.uust.schedule.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -62,110 +63,81 @@ fun UpdateDialog(
             palette = palette,
             systemAccent = systemAccent,
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 560.dp),
-                shape = RoundedCornerShape(32.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                tonalElevation = 0.dp,
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                ),
-            ) {
-                Column {
-                    UpdateHeader(update = update, onClose = state::dismiss)
-                    Column(
-                        modifier = Modifier.padding(horizontal = 26.dp, vertical = 22.dp),
-                        verticalArrangement = Arrangement.spacedBy(18.dp),
-                    ) {
-                        VersionRow(
-                            currentVersion = state.currentVersion,
+            BoxWithConstraints {
+                val compact = maxWidth < 400.dp
+                val dialogMaxHeight = if (maxHeight.value.isFinite()) {
+                    maxHeight * 0.94f
+                } else {
+                    maxHeight
+                }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 560.dp)
+                        .heightIn(max = dialogMaxHeight),
+                    shape = RoundedCornerShape(32.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 0.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                    ),
+                ) {
+                    Column {
+                        UpdateHeader(
                             update = update,
+                            onClose = state::dismiss,
+                            compact = compact,
                         )
-
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(
-                                "Что нового",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
+                        Column(
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 26.dp, vertical = 18.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            VersionRow(
+                                currentVersion = state.currentVersion,
+                                update = update,
                             )
-                            Changelog(
-                                markdown = update.changelog,
-                                modifier = Modifier.heightIn(max = 260.dp),
-                            )
-                        }
 
-                        if (state.isDownloading) {
-                            UpdateProgress(state)
-                        }
+                            if (state.isDownloading) {
+                                UpdateProgress(state)
+                            }
 
-                        state.error?.let { message ->
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.Top,
+                            state.error?.let { message ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
                                 ) {
-                                    Icon(
-                                        Icons.Rounded.ErrorOutline,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                    Text(
-                                        message,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.weight(1f),
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        verticalAlignment = Alignment.Top,
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.ErrorOutline,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                        Text(
+                                            message,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
                                 }
                             }
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TextButton(
-                                onClick = state::skipCurrentVersion,
-                                enabled = !state.isDownloading,
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                    horizontal = 10.dp,
-                                ),
-                            ) {
-                                Text(
-                                    "Пропустить эту версию",
-                                    style = MaterialTheme.typography.labelLarge,
-                                )
-                            }
-                            Spacer(Modifier.weight(1f))
-                            Button(
-                                onClick = state::install,
-                                enabled = !state.isDownloading,
-                                shape = CircleShape,
-                            ) {
-                                Icon(
-                                    if (update.supportsOneClick) {
-                                        Icons.Rounded.Download
-                                    } else {
-                                        Icons.Rounded.OpenInNew
-                                    },
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    if (update.supportsOneClick) "Обновить" else "Открыть релиз",
-                                )
-                            }
-                        }
+                        UpdateActions(
+                            state = state,
+                            update = update,
+                            compact = compact,
+                        )
                     }
                 }
             }
@@ -174,9 +146,93 @@ fun UpdateDialog(
 }
 
 @Composable
+private fun UpdateActions(
+    state: UpdateState,
+    update: UpdateInfo,
+    compact: Boolean,
+) {
+    if (compact) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 26.dp, end = 26.dp, bottom = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            UpdateButton(
+                state = state,
+                update = update,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextButton(
+                onClick = state::skipCurrentVersion,
+                enabled = !state.isDownloading,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "Пропустить эту версию",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 26.dp, end = 26.dp, bottom = 22.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = state::skipCurrentVersion,
+                enabled = !state.isDownloading,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    horizontal = 10.dp,
+                ),
+            ) {
+                Text(
+                    "Пропустить эту версию",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            UpdateButton(state = state, update = update)
+        }
+    }
+}
+
+@Composable
+private fun UpdateButton(
+    state: UpdateState,
+    update: UpdateInfo,
+    modifier: Modifier = Modifier,
+) {
+    Button(
+        onClick = state::install,
+        enabled = !state.isDownloading,
+        shape = CircleShape,
+        modifier = modifier,
+    ) {
+        Icon(
+            if (update.supportsOneClick) {
+                Icons.Rounded.Download
+            } else {
+                Icons.Rounded.OpenInNew
+            },
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            if (update.supportsOneClick) "Обновить" else "Открыть релиз",
+        )
+    }
+}
+
+@Composable
 private fun UpdateHeader(
     update: UpdateInfo,
     onClose: () -> Unit,
+    compact: Boolean,
 ) {
     val scheme = MaterialTheme.colorScheme
     Box(
@@ -190,24 +246,31 @@ private fun UpdateHeader(
                     ),
                 ),
             )
-            .padding(start = 24.dp, top = 22.dp, end = 14.dp, bottom = 22.dp),
+            .padding(
+                start = 24.dp,
+                top = if (compact) 18.dp else 22.dp,
+                end = if (compact) 10.dp else 14.dp,
+                bottom = if (compact) 18.dp else 22.dp,
+            ),
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 14.dp),
             verticalAlignment = Alignment.Top,
         ) {
-            Surface(
-                shape = CircleShape,
-                color = scheme.onPrimaryContainer.copy(alpha = 0.10f),
-                modifier = Modifier.size(46.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Rounded.SystemUpdateAlt,
-                        contentDescription = null,
-                        tint = scheme.onPrimaryContainer,
-                        modifier = Modifier.size(24.dp),
-                    )
+            if (!compact) {
+                Surface(
+                    shape = CircleShape,
+                    color = scheme.onPrimaryContainer.copy(alpha = 0.10f),
+                    modifier = Modifier.size(46.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Rounded.SystemUpdateAlt,
+                            contentDescription = null,
+                            tint = scheme.onPrimaryContainer,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 }
             }
             Column(
@@ -216,7 +279,11 @@ private fun UpdateHeader(
             ) {
                 Text(
                     "Доступно обновление",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = if (compact) {
+                        MaterialTheme.typography.titleLarge
+                    } else {
+                        MaterialTheme.typography.headlineSmall
+                    },
                     fontWeight = FontWeight.Black,
                     color = scheme.onPrimaryContainer,
                 )
@@ -227,18 +294,26 @@ private fun UpdateHeader(
                 )
             }
             Row(verticalAlignment = Alignment.Top) {
-                IconButton(onClick = onClose) {
+                IconButton(
+                    onClick = onClose,
+                    modifier = if (compact) Modifier.size(38.dp) else Modifier,
+                ) {
                     Icon(
                         Icons.Rounded.ArrowBack,
                         contentDescription = "Назад",
                         tint = scheme.onPrimaryContainer,
+                        modifier = if (compact) Modifier.size(21.dp) else Modifier,
                     )
                 }
-                IconButton(onClick = onClose) {
+                IconButton(
+                    onClick = onClose,
+                    modifier = if (compact) Modifier.size(38.dp) else Modifier,
+                ) {
                     Icon(
                         Icons.Rounded.Close,
                         contentDescription = "Закрыть",
                         tint = scheme.onPrimaryContainer,
+                        modifier = if (compact) Modifier.size(21.dp) else Modifier,
                     )
                 }
             }
@@ -341,16 +416,10 @@ private fun UpdateProgress(state: UpdateState) {
 }
 
 @Composable
-private fun Changelog(
-    markdown: String,
-    modifier: Modifier = Modifier,
-) {
+private fun Changelog(markdown: String) {
     val blocks = remember(markdown) { parseChangelog(markdown) }
 
-    Column(
-        modifier = modifier.verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (blocks.isEmpty()) {
             Text(
                 "Список изменений доступен на странице релиза.",
