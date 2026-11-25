@@ -38,8 +38,12 @@ class ScheduleState(
     initialSystemDark: Boolean = false,
 ) {
     private val themePreferences = ThemePreferences()
+    private val favoritesPreferences = FavoritesPreferences()
 
     var groups by mutableStateOf<List<Group>>(emptyList())
+        private set
+
+    var favoriteGroupIds by mutableStateOf(favoritesPreferences.load())
         private set
 
     var teachers by mutableStateOf<List<Teacher>>(emptyList())
@@ -176,6 +180,30 @@ class ScheduleState(
     fun isSelected(target: ScheduleTarget): Boolean {
         val current = selectedTarget ?: return false
         return current.kind == target.kind && current.id == target.id
+    }
+
+    val favoriteGroups: List<Group> by derivedStateOf {
+        val groupsById = groups.associateBy { it.id }
+        favoriteGroupIds.mapNotNull { groupsById[it] }
+    }
+
+    fun isFavorite(group: Group): Boolean = group.id in favoriteGroupIds
+
+    fun toggleFavorite(group: Group) {
+        val updated = if (group.id in favoriteGroupIds) {
+            favoriteGroupIds - group.id
+        } else {
+            favoriteGroupIds + group.id
+        }
+        favoriteGroupIds = updated
+        favoritesPreferences.save(updated)
+    }
+
+    fun removeFavorite(group: Group) {
+        if (group.id !in favoriteGroupIds) return
+        val updated = favoriteGroupIds - group.id
+        favoriteGroupIds = updated
+        favoritesPreferences.save(updated)
     }
 
     val weeks: List<Int> by derivedStateOf {

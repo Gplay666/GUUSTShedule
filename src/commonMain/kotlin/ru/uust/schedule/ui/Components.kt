@@ -71,6 +71,8 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
@@ -115,6 +117,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import ru.uust.schedule.data.Group
 import ru.uust.schedule.data.GroupTarget
 import ru.uust.schedule.data.Lesson
 import ru.uust.schedule.data.ScheduleTarget
@@ -199,6 +202,53 @@ fun BrandMark(
 }
 
 @Composable
+private fun FavoriteStarButton(
+    isFavorite: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val container by animateColorAsState(
+        targetValue = if (isFavorite) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        animationSpec = AppMotion.effects(),
+        label = "favoriteStarContainer",
+    )
+    val content = if (isFavorite) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(52.dp),
+        shape = CircleShape,
+        color = container,
+        contentColor = content.copy(alpha = if (enabled) 1f else 0.38f),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+        ),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                contentDescription = if (isFavorite) {
+                    "Убрать группу из избранного"
+                } else {
+                    "Добавить группу в избранное"
+                },
+                modifier = Modifier.size(24.dp),
+            )
+        }
+    }
+}
+
+@Composable
 fun TargetSearch(
     state: ScheduleState,
     modifier: Modifier = Modifier,
@@ -209,6 +259,7 @@ fun TargetSearch(
     val focusManager = LocalFocusManager.current
     val showSuggestions = state.query.isNotBlank() &&
         state.query.trim() != state.selectedTarget?.title
+    val selectedGroup = (state.selectedTarget as? GroupTarget)?.group
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -250,6 +301,11 @@ fun TargetSearch(
                     unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
                     cursorColor = MaterialTheme.colorScheme.primary,
                 ),
+            )
+            FavoriteStarButton(
+                isFavorite = selectedGroup?.let(state::isFavorite) == true,
+                enabled = selectedGroup != null,
+                onClick = { selectedGroup?.let(state::toggleFavorite) },
             )
             trailingActions?.invoke()
         }
@@ -569,6 +625,119 @@ fun SelectedTargetCard(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun FavoriteGroupsSection(
+    state: ScheduleState,
+    modifier: Modifier = Modifier,
+    onTargetSelected: (() -> Unit)? = null,
+) {
+    val favorites = state.favoriteGroups
+    if (favorites.isEmpty()) return
+
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "ИЗБРАННЫЕ ГРУППЫ",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 1.5.sp,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        favorites.forEach { group ->
+            FavoriteGroupRow(
+                group = group,
+                selected = state.isSelected(GroupTarget(group)),
+                onClick = {
+                    state.selectTarget(GroupTarget(group))
+                    onTargetSelected?.invoke()
+                },
+                onRemove = { state.removeFavorite(group) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FavoriteGroupRow(
+    group: Group,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val container by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        animationSpec = AppMotion.effects(),
+        label = "favoriteGroupBackground",
+    )
+    val content = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val secondaryContent = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = container,
+        contentColor = content,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                Icons.Rounded.Star,
+                contentDescription = null,
+                tint = if (selected) content else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    group.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (group.subtitle.isNotBlank()) {
+                    Text(
+                        group.subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = secondaryContent,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = "Убрать «${group.title}» из избранного",
+                    tint = secondaryContent,
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
     }

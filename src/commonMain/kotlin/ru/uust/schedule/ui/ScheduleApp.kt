@@ -275,7 +275,10 @@ private fun Sidebar(
             ) {
                 BrandMark()
                 TargetSearch(state, onTargetSelected = onTargetSelected)
-                SelectedTargetCard(state)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SelectedTargetCard(state)
+                    FavoriteGroupsSection(state, onTargetSelected = onTargetSelected)
+                }
                 Spacer(Modifier.height(8.dp))
                 SidebarFooter(state)
             }
