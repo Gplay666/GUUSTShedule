@@ -125,7 +125,7 @@ internal fun nightCityLessonAccent(type: String): Color {
         normalized.contains("консультац") ->
             NightCityLessonColors.Support
         normalized.contains("лаборатор") ->
-            NightCityLessonColors.Laboratory
+            NightCityLessonColors.Information
         normalized.contains("экзамен") ->
             NightCityLessonColors.Alert
         normalized.contains("зачёт с оценкой") ||
@@ -135,13 +135,13 @@ internal fun nightCityLessonAccent(type: String): Color {
             normalized.contains("зачет") ->
             NightCityLessonColors.Warm
         normalized.contains("производственная практика") ->
-            NightCityLessonColors.Information
+            NightCityLessonColors.Attention
         normalized.contains("практика") ||
             normalized.contains("семинар") ->
-            NightCityLessonColors.Information
+            NightCityLessonColors.Attention
         normalized.contains("лекция") ||
             normalized.contains("лек") ->
-            NightCityLessonColors.Attention
+            NightCityLessonColors.Laboratory
         normalized.contains("физвоспитание") ->
             NightCityLessonColors.Growth
         normalized.contains("военная подготовка") ->
