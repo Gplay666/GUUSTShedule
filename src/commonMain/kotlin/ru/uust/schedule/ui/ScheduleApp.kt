@@ -532,11 +532,27 @@ private fun ScheduleHeader(
     compact: Boolean,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
     val target = state.selectedTarget
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
+    val headerBackground = if (isNightCity) {
+        Modifier
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        scheme.surfaceContainerLow,
+                        scheme.background,
+                    )
+                )
+            )
+            .drawBehind {
+                drawCircle(
+                    color = scheme.primary.copy(alpha = 0.035f),
+                    radius = size.minDimension * 0.5f,
+                    center = Offset(size.width * 0.95f, -size.height * 0.2f),
+                )
+            }
+    } else {
+        Modifier
             .drawBehind {
                 drawCircle(
                     color = scheme.primary.copy(alpha = 0.10f),
@@ -556,7 +572,13 @@ private fun ScheduleHeader(
                         Color.Transparent,
                     )
                 )
-            ),
+            )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(headerBackground),
     ) {
         Column(
             modifier = Modifier.padding(
@@ -1322,13 +1344,19 @@ private fun DayChip(
 ) {
     val scheme = MaterialTheme.colorScheme
     val accent = weekdayAccent(day, scheme)
+    val selectedContent = when (accent) {
+        scheme.primary -> scheme.onPrimary
+        scheme.secondary -> scheme.onSecondary
+        scheme.tertiary -> scheme.onTertiary
+        else -> Color.White
+    }
     val container by animateColorAsState(
         targetValue = if (selected) accent else scheme.surfaceContainerHigh,
         animationSpec = AppMotion.effects(),
         label = "dayChipContainer",
     )
     val content by animateColorAsState(
-        targetValue = if (selected) Color.White else scheme.onSurfaceVariant,
+        targetValue = if (selected) selectedContent else scheme.onSurfaceVariant,
         animationSpec = AppMotion.effects(),
         label = "dayChipContent",
     )
@@ -1363,7 +1391,7 @@ private fun DayChip(
                 Text(
                     dateLabel ?: "—",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (selected) Color.White.copy(alpha = 0.8f) else scheme.onSurfaceVariant,
+                    color = if (selected) selectedContent.copy(alpha = 0.8f) else scheme.onSurfaceVariant,
                     maxLines = 1,
                 )
             }
@@ -1372,7 +1400,7 @@ private fun DayChip(
                     Modifier
                         .align(Alignment.TopEnd)
                         .size(6.dp)
-                        .background(if (selected) Color.White else accent, CircleShape),
+                        .background(if (selected) selectedContent else accent, CircleShape),
                 )
             }
         }

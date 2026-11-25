@@ -10,7 +10,9 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -36,9 +38,8 @@ enum class ThemePalette(
     val swatches: List<Color>,
     internal val outer: Color? = null,
     internal val inner: Color? = null,
-) {
-    Current(
-        displayName = "Текущая палитра",
+) {    Current(
+        displayName = "GShedule",
         swatches = listOf(
             Color(0xFF4B3FD6),
             Color(0xFFE25B75),
@@ -46,52 +47,75 @@ enum class ThemePalette(
         ),
     ),
     Brand1(
-        displayName = "Палитра 1",
+        displayName = "УУНиТ",
         swatches = listOf(Color(0xFF2A1468), Color(0xFF4D19CC)),
         outer = Color(0xFF2A1468),
         inner = Color(0xFF4D19CC),
     ),
     Brand2(
-        displayName = "Палитра 2",
+        displayName = "Пост-панк",
         swatches = listOf(Color(0xFFE8E8E8), Color(0xFFCBB8FF)),
         outer = Color(0xFFE8E8E8),
         inner = Color(0xFFCBB8FF),
     ),
     Brand3(
-        displayName = "Палитра 3",
+        displayName = "Глубина",
         swatches = listOf(Color(0xFF4D19CC), Color(0xFFAA92FF)),
         outer = Color(0xFF4D19CC),
         inner = Color(0xFFAA92FF),
     ),
     Brand4(
-        displayName = "Палитра 4",
+        displayName = "Поверхность",
         swatches = listOf(Color(0xFFCBB8FF), Color(0xFF8264FF)),
         outer = Color(0xFFCBB8FF),
         inner = Color(0xFF8264FF),
     ),
     Brand5(
-        displayName = "Палитра 5",
+        displayName = "Злато",
         swatches = listOf(Color(0xFFF9D84B), Color(0xFFEA591F)),
         outer = Color(0xFFF9D84B),
         inner = Color(0xFFEA591F),
     ),
     Brand6(
-        displayName = "Палитра 6",
+        displayName = "Пламя",
         swatches = listOf(Color(0xFFFFA039), Color(0xFFEA591F)),
         outer = Color(0xFFFFA039),
         inner = Color(0xFFEA591F),
     ),
     Brand7(
-        displayName = "Палитра 7",
+        displayName = "Зелень",
         swatches = listOf(Color(0xFF00BC7D), Color(0xFFC1F26B)),
         outer = Color(0xFF00BC7D),
         inner = Color(0xFFC1F26B),
     ),
+    Kawaii(
+        displayName = "Kawaii",
+        swatches = listOf(
+            Color(0xFFFFB6C1),
+            Color(0xFFFF69B4),
+            Color(0xFFFF1493),
+        ),
+    ),
+    NightCity(
+        displayName = "Night City",
+        swatches = listOf(
+            Color(0xFF06070C),
+            Color(0xFFFCEE0A),
+            Color(0xFF00E5FF),
+        ),
+    ),
     System(
-        displayName = "Цвета устройства",
+        displayName = "цвета устройства",
         swatches = emptyList(),
     ),
 }
+
+/**
+ * The palette that is currently active. Components use it for the few
+ * decisions that cannot be expressed through Material's colour roles alone,
+ * such as Night City's disciplined lesson-type accents.
+ */
+val LocalThemePalette = staticCompositionLocalOf { ThemePalette.Current }
 
 private val CurrentLightColors = lightColorScheme(
     primary = Color(0xFF4B3FD6),
@@ -167,6 +191,158 @@ private val CurrentDarkColors = darkColorScheme(
     surfaceContainerLow = Color(0xFF1C1B20),
     surfaceContainerLowest = Color(0xFF0F0E13),
     surfaceDim = Color(0xFF141318),
+)
+
+private val KawaiiLightColors = lightColorScheme(
+    primary = Color(0xFFD81B60),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFFB3D1),
+    onPrimaryContainer = Color(0xFF5A0030),
+    inversePrimary = Color(0xFFFF80AB),
+    secondary = Color(0xFFFF4081),
+    onSecondary = Color(0xFF4A0024),
+    secondaryContainer = Color(0xFFFFC1DA),
+    onSecondaryContainer = Color(0xFF4A0024),
+    tertiary = Color(0xFFC2185B),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFB3D1),
+    onTertiaryContainer = Color(0xFF4A0024),
+    background = Color(0xFFFFD9EB),
+    onBackground = Color(0xFF4A1030),
+    surface = Color(0xFFFFD9EB),
+    onSurface = Color(0xFF4A1030),
+    surfaceVariant = Color(0xFFFFB8D9),
+    onSurfaceVariant = Color(0xFF7A2048),
+    surfaceTint = Color(0xFFD81B60),
+    inverseSurface = Color(0xFF4A1030),
+    inverseOnSurface = Color(0xFFFFE0EF),
+    error = Color(0xFFBA1A1A),
+    onError = Color.White,
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
+    outline = Color(0xFFB03060),
+    outlineVariant = Color(0xFFFF9EC7),
+    surfaceBright = Color(0xFFFFF0F7),
+    surfaceContainer = Color(0xFFFFD0E5),
+    surfaceContainerHigh = Color(0xFFFFC1DD),
+    surfaceContainerHighest = Color(0xFFFFB2D5),
+    surfaceContainerLow = Color(0xFFFFE6F2),
+    surfaceContainerLowest = Color(0xFFFFF5FA),
+    surfaceDim = Color(0xFFF0AFCB),
+)
+
+private val KawaiiDarkColors = darkColorScheme(
+    primary = Color(0xFFFF80AB),
+    onPrimary = Color(0xFF5A0030),
+    primaryContainer = Color(0xFF8E0045),
+    onPrimaryContainer = Color(0xFFFFD9E8),
+    inversePrimary = Color(0xFFD81B60),
+    secondary = Color(0xFFFFB3D1),
+    onSecondary = Color(0xFF4A0024),
+    secondaryContainer = Color(0xFF7A1F4A),
+    onSecondaryContainer = Color(0xFFFFD9E8),
+    tertiary = Color(0xFFFF6FAE),
+    onTertiary = Color(0xFF4A0024),
+    tertiaryContainer = Color(0xFF8E1A55),
+    onTertiaryContainer = Color(0xFFFFD9E8),
+    background = Color(0xFF2A0A1A),
+    onBackground = Color(0xFFFFE0EF),
+    surface = Color(0xFF2A0A1A),
+    onSurface = Color(0xFFFFE0EF),
+    surfaceVariant = Color(0xFF6B1F45),
+    onSurfaceVariant = Color(0xFFFFB8D9),
+    surfaceTint = Color(0xFFFF80AB),
+    inverseSurface = Color(0xFFFFE0EF),
+    inverseOnSurface = Color(0xFF4A1030),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
+    outline = Color(0xFFFF80AB),
+    outlineVariant = Color(0xFF8E3A62),
+    surfaceBright = Color(0xFF5A2040),
+    surfaceContainer = Color(0xFF3A1226),
+    surfaceContainerHigh = Color(0xFF4A1832),
+    surfaceContainerHighest = Color(0xFF5A1E3E),
+    surfaceContainerLow = Color(0xFF321020),
+    surfaceContainerLowest = Color(0xFF220814),
+    surfaceDim = Color(0xFF2A0A1A),
+)
+
+private val NightCityLightColors = lightColorScheme(
+    primary = Color(0xFF8A7A00),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFFF48A),
+    onPrimaryContainer = Color(0xFF1F1C00),
+    inversePrimary = Color(0xFFFCEE0A),
+    secondary = Color(0xFF007A86),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFB8F6FF),
+    onSecondaryContainer = Color(0xFF002A30),
+    tertiary = Color(0xFF8A3039),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFB1BF),
+    onTertiaryContainer = Color(0xFF3A0811),
+    background = Color(0xFFF2F3F7),
+    onBackground = Color(0xFF06070C),
+    surface = Color(0xFFF2F3F7),
+    onSurface = Color(0xFF06070C),
+    surfaceVariant = Color(0xFFE2E3E8),
+    onSurfaceVariant = Color(0xFF3A3F4D),
+    surfaceTint = Color(0xFF8A7A00),
+    inverseSurface = Color(0xFF06070C),
+    inverseOnSurface = Color(0xFFF2F3F7),
+    error = Color(0xFFC42E3C),
+    onError = Color.White,
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
+    outline = Color(0xFF6D7280),
+    outlineVariant = Color(0xFFC5C7D0),
+    surfaceBright = Color.White,
+    surfaceContainer = Color(0xFFEEF0F3),
+    surfaceContainerHigh = Color(0xFFE6E8EC),
+    surfaceContainerHighest = Color(0xFFDEE1E6),
+    surfaceContainerLow = Color(0xFFF7F8FA),
+    surfaceContainerLowest = Color.White,
+    surfaceDim = Color(0xFFD5D8DE),
+)
+
+private val NightCityDarkColors = darkColorScheme(
+    primary = Color(0xFFFCEE0A),
+    onPrimary = Color(0xFF0A0B12),
+    primaryContainer = Color(0xFF353109),
+    onPrimaryContainer = Color(0xFFFFF7A3),
+    inversePrimary = Color(0xFF5C5404),
+    secondary = Color(0xFF00E5FF),
+    onSecondary = Color(0xFF002A30),
+    secondaryContainer = Color(0xFF0B3A42),
+    onSecondaryContainer = Color(0xFFB8F6FF),
+    tertiary = Color(0xFFCC4F6A),
+    onTertiary = Color(0xFF1F0308),
+    tertiaryContainer = Color(0xFF4A1622),
+    onTertiaryContainer = Color(0xFFFFB1BF),
+    background = Color(0xFF06070C),
+    onBackground = Color(0xFFF2F3F7),
+    surface = Color(0xFF06070C),
+    onSurface = Color(0xFFF2F3F7),
+    surfaceVariant = Color(0xFF1E222E),
+    onSurfaceVariant = Color(0xFFA7ABB8),
+    surfaceTint = Color(0xFFFCEE0A),
+    inverseSurface = Color(0xFFF2F3F7),
+    inverseOnSurface = Color(0xFF10121B),
+    error = Color(0xFFFF3B4E),
+    onError = Color(0xFF2B0006),
+    errorContainer = Color(0xFF5C1019),
+    onErrorContainer = Color(0xFFFFB2B8),
+    outline = Color(0xFF6D7280),
+    outlineVariant = Color(0xFF3A3F4D),
+    surfaceBright = Color(0xFF2A2F3B),
+    surfaceContainer = Color(0xFF10121B),
+    surfaceContainerHigh = Color(0xFF171A24),
+    surfaceContainerHighest = Color(0xFF1E222E),
+    surfaceContainerLow = Color(0xFF0A0B12),
+    surfaceContainerLowest = Color(0xFF030409),
+    surfaceDim = Color(0xFF06070C),
 )
 
 private val ExpressiveShapes = Shapes(
@@ -302,6 +478,14 @@ fun UustScheduleTheme(
     // full ColorScheme. Reuse it until the theme inputs actually change.
     val colorScheme = remember(darkTheme, palette, systemAccent) {
         when {
+            palette == ThemePalette.Kawaii -> {
+                if (darkTheme) KawaiiDarkColors else KawaiiLightColors
+            }
+
+            palette == ThemePalette.NightCity -> {
+                if (darkTheme) NightCityDarkColors else NightCityLightColors
+            }
+
             palette == ThemePalette.System && systemAccent != null -> {
                 val companion = mix(
                     systemAccent,
@@ -323,8 +507,9 @@ fun UustScheduleTheme(
         colorScheme = colorScheme,
         shapes = ExpressiveShapes,
         typography = ExpressiveTypography,
-        content = content,
-    )
+    ) {
+        CompositionLocalProvider(LocalThemePalette provides palette, content = content)
+    }
 }
 
 /**

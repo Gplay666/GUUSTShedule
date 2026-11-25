@@ -235,17 +235,27 @@ private fun UpdateHeader(
     compact: Boolean,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
+    val contentColor = if (isNightCity) scheme.onSurface else scheme.onPrimaryContainer
+    val accentColor = if (isNightCity) scheme.primary else scheme.onPrimaryContainer
+    val backgroundModifier = if (isNightCity) {
+        Modifier
+            .background(scheme.surfaceContainer)
+            .lessonAccentStripe(scheme.primary)
+    } else {
+        Modifier.background(
+            Brush.linearGradient(
+                listOf(
+                    scheme.primaryContainer,
+                    scheme.tertiaryContainer.copy(alpha = 0.8f),
+                ),
+            )
+        )
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        scheme.primaryContainer,
-                        scheme.tertiaryContainer.copy(alpha = 0.8f),
-                    ),
-                ),
-            )
+            .then(backgroundModifier)
             .padding(
                 start = 24.dp,
                 top = if (compact) 18.dp else 22.dp,
@@ -260,14 +270,18 @@ private fun UpdateHeader(
             if (!compact) {
                 Surface(
                     shape = CircleShape,
-                    color = scheme.onPrimaryContainer.copy(alpha = 0.10f),
+                    color = if (isNightCity) {
+                        scheme.primary.copy(alpha = 0.14f)
+                    } else {
+                        contentColor.copy(alpha = 0.10f)
+                    },
                     modifier = Modifier.size(46.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Rounded.SystemUpdateAlt,
                             contentDescription = null,
-                            tint = scheme.onPrimaryContainer,
+                            tint = accentColor,
                             modifier = Modifier.size(24.dp),
                         )
                     }
@@ -285,12 +299,12 @@ private fun UpdateHeader(
                         MaterialTheme.typography.headlineSmall
                     },
                     fontWeight = FontWeight.Black,
-                    color = scheme.onPrimaryContainer,
+                    color = contentColor,
                 )
                 Text(
                     "Расписание УУНиТ ${update.version}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onPrimaryContainer.copy(alpha = 0.8f),
+                    color = contentColor.copy(alpha = 0.8f),
                 )
             }
             Row(verticalAlignment = Alignment.Top) {
@@ -301,7 +315,7 @@ private fun UpdateHeader(
                     Icon(
                         Icons.Rounded.ArrowBack,
                         contentDescription = "Назад",
-                        tint = scheme.onPrimaryContainer,
+                        tint = contentColor,
                         modifier = if (compact) Modifier.size(21.dp) else Modifier,
                     )
                 }
@@ -312,7 +326,7 @@ private fun UpdateHeader(
                     Icon(
                         Icons.Rounded.Close,
                         contentDescription = "Закрыть",
-                        tint = scheme.onPrimaryContainer,
+                        tint = contentColor,
                         modifier = if (compact) Modifier.size(21.dp) else Modifier,
                     )
                 }

@@ -1,5 +1,7 @@
 package ru.uust.schedule.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -77,5 +79,83 @@ internal fun lessonAccent(type: String): Color {
         normalized.contains("прочее") ->
             LessonTypeColors.Other
         else -> LessonTypeColors.Unknown
+    }
+}
+
+/**
+ * Night City's lesson colours are a curated subset of the NCDI accents.
+ *
+ * The palette intentionally does not reuse the full university rainbow: on a
+ * near-black canvas each hue is used as a small signal (a type label and a
+ * thin rule), never as a card fill. This keeps the timetable reading as one
+ * composition while still making lesson types recognisable at a glance.
+ */
+internal object NightCityLessonColors {
+    val Attention = Color(0xFFFCEE0A)
+    val Information = Color(0xFF00E5FF)
+    val Laboratory = Color(0xFFFF2E9C)
+    val Alert = Color(0xFFFF3B4E)
+    val Support = Color(0xFF9B5DE5)
+    val Growth = Color(0xFF55E58A)
+    val Warm = Color(0xFFFFB020)
+    val Muted = Color(0xFFA7ABB8)
+    val Unknown = Color(0xFF6D7280)
+}
+
+@Composable
+internal fun rememberLessonAccent(type: String): Color {
+    val palette = LocalThemePalette.current
+    return remember(type, palette) {
+        when (palette) {
+            ThemePalette.NightCity -> nightCityLessonAccent(type)
+            else -> lessonAccent(type)
+        }
+    }
+}
+
+internal fun nightCityLessonAccent(type: String): Color {
+    val normalized = type.trim().lowercase()
+    return when {
+        normalized.contains("лекция + практика + лабораторная") ->
+            NightCityLessonColors.Support
+        normalized.contains("лекция + практика") ->
+            NightCityLessonColors.Warm
+        normalized.contains("защита") ->
+            NightCityLessonColors.Alert
+        normalized.contains("консультац") ->
+            NightCityLessonColors.Support
+        normalized.contains("лаборатор") ->
+            NightCityLessonColors.Laboratory
+        normalized.contains("экзамен") ->
+            NightCityLessonColors.Alert
+        normalized.contains("зачёт с оценкой") ||
+            normalized.contains("зачет с оценкой") ->
+            NightCityLessonColors.Alert
+        normalized.contains("зачёт") ||
+            normalized.contains("зачет") ->
+            NightCityLessonColors.Warm
+        normalized.contains("производственная практика") ->
+            NightCityLessonColors.Information
+        normalized.contains("практика") ||
+            normalized.contains("семинар") ->
+            NightCityLessonColors.Information
+        normalized.contains("лекция") ||
+            normalized.contains("лек") ->
+            NightCityLessonColors.Attention
+        normalized.contains("физвоспитание") ->
+            NightCityLessonColors.Growth
+        normalized.contains("военная подготовка") ->
+            NightCityLessonColors.Growth
+        normalized.contains("иностранный язык") ->
+            NightCityLessonColors.Warm
+        normalized.contains("мероприятие") ->
+            NightCityLessonColors.Support
+        normalized.contains("ликвидация") ->
+            NightCityLessonColors.Muted
+        normalized.contains("кураторский час") ->
+            NightCityLessonColors.Growth
+        normalized.contains("прочее") ->
+            NightCityLessonColors.Muted
+        else -> NightCityLessonColors.Unknown
     }
 }

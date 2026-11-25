@@ -27,6 +27,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +62,7 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
@@ -392,9 +394,11 @@ private fun TargetSuggestion(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
     val background by animateColorAsState(
         targetValue = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
+            if (isNightCity) scheme.primary.copy(alpha = 0.12f) else scheme.primaryContainer
         } else {
             Color.Transparent
         },
@@ -409,15 +413,19 @@ private fun TargetSuggestion(
             .joinToString(" · ")
     }
     val initial = target.title.firstOrNull()?.uppercaseChar()?.toString().orEmpty()
-    val avatarContainer = if (isTeacher) {
-        MaterialTheme.colorScheme.secondaryContainer
+    val avatarContainer = if (isNightCity) {
+        scheme.surfaceContainerHighest
+    } else if (isTeacher) {
+        scheme.secondaryContainer
     } else {
-        MaterialTheme.colorScheme.primaryContainer
+        scheme.primaryContainer
     }
-    val avatarContent = if (isTeacher) {
-        MaterialTheme.colorScheme.onSecondaryContainer
+    val avatarContent = if (isNightCity) {
+        if (isTeacher) scheme.secondary else scheme.primary
+    } else if (isTeacher) {
+        scheme.onSecondaryContainer
     } else {
-        MaterialTheme.colorScheme.onPrimaryContainer
+        scheme.onPrimaryContainer
     }
 
     Row(
@@ -488,26 +496,30 @@ fun SelectedTargetCard(
     modifier: Modifier = Modifier,
 ) {
     val target = state.selectedTarget
-    val shape = MaterialTheme.shapes.extraLarge
-    val primary = MaterialTheme.colorScheme.primary
-    val tertiary = MaterialTheme.colorScheme.tertiary
-    val onContainer = MaterialTheme.colorScheme.onPrimaryContainer
+    val scheme = MaterialTheme.colorScheme
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
+    val shape = if (isNightCity) RoundedCornerShape(12.dp) else MaterialTheme.shapes.extraLarge
+    val primary = scheme.primary
+    val tertiary = scheme.tertiary
+    val onContainer = if (isNightCity) scheme.onSurface else scheme.onPrimaryContainer
+    val labelColor = if (isNightCity) scheme.primary else onContainer.copy(alpha = 0.7f)
+    val iconTint = if (isNightCity) scheme.primary else onContainer
     val label = when (target) {
         is GroupTarget -> "ГРУППА"
         is TeacherTarget -> "ПРЕПОДАВАТЕЛЬ"
         null -> "ПОИСК"
     }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .animateContentSize(animationSpec = AppMotion.spatial())
-            .clip(shape)
+    val panelModifier = if (isNightCity) {
+        Modifier
+            .background(scheme.surfaceContainer)
+            .border(1.dp, scheme.outlineVariant.copy(alpha = 0.65f), shape)
+    } else {
+        Modifier
             .background(
                 Brush.linearGradient(
                     listOf(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.75f),
+                        scheme.primaryContainer,
+                        scheme.tertiaryContainer.copy(alpha = 0.75f),
                     )
                 )
             )
@@ -523,6 +535,15 @@ fun SelectedTargetCard(
                     center = Offset(size.width * 0.7f, size.height * 1.1f),
                 )
             }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize(animationSpec = AppMotion.spatial())
+            .clip(shape)
+            .then(panelModifier)
+            .then(if (isNightCity) Modifier.lessonAccentStripe(primary) else Modifier)
             .padding(22.dp),
     ) {
         if (target == null) {
@@ -530,7 +551,7 @@ fun SelectedTargetCard(
                 Text(
                     label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = onContainer.copy(alpha = 0.7f),
+                    color = labelColor,
                     letterSpacing = 1.5.sp,
                 )
                 Text(
@@ -551,13 +572,17 @@ fun SelectedTargetCard(
                     Text(
                         label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = onContainer.copy(alpha = 0.7f),
+                        color = labelColor,
                         letterSpacing = 1.5.sp,
                         modifier = Modifier.weight(1f),
                     )
                     Surface(
                         shape = CircleShape,
-                        color = onContainer.copy(alpha = 0.08f),
+                        color = if (isNightCity) {
+                            scheme.primary.copy(alpha = 0.14f)
+                        } else {
+                            onContainer.copy(alpha = 0.08f)
+                        },
                         modifier = Modifier.size(36.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -568,7 +593,7 @@ fun SelectedTargetCard(
                                     Icons.Rounded.CalendarMonth
                                 },
                                 contentDescription = null,
-                                tint = onContainer,
+                                tint = iconTint,
                                 modifier = Modifier.size(19.dp),
                             )
                         }
@@ -667,24 +692,30 @@ private fun FavoriteTargetRow(
     onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
     val container by animateColorAsState(
         targetValue = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
+            if (isNightCity) scheme.surfaceContainerHigh else scheme.primaryContainer
         } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
+            scheme.surfaceContainerHigh
         },
         animationSpec = AppMotion.effects(),
         label = "favoriteTargetBackground",
     )
     val content = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
+        if (isNightCity) scheme.primary else scheme.onPrimaryContainer
     } else {
-        MaterialTheme.colorScheme.onSurface
+        scheme.onSurface
     }
     val secondaryContent = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
+        if (isNightCity) {
+            scheme.onSurfaceVariant
+        } else {
+            scheme.onPrimaryContainer.copy(alpha = 0.72f)
+        }
     } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
+        scheme.onSurfaceVariant
     }
     val isTeacher = target is TeacherTarget
     val subtitle = when (target) {
@@ -694,6 +725,20 @@ private fun FavoriteTargetRow(
             .joinToString(" · ")
     }
     val initial = target.title.firstOrNull()?.uppercaseChar()?.toString().orEmpty()
+    val avatarContainer = when {
+        selected && isNightCity -> scheme.primary.copy(alpha = 0.14f)
+        selected -> content.copy(alpha = 0.12f)
+        isNightCity -> scheme.surfaceContainerHighest
+        isTeacher -> scheme.secondaryContainer
+        else -> scheme.primaryContainer
+    }
+    val avatarContent = when {
+        selected && isNightCity -> scheme.primary
+        selected -> content
+        isNightCity -> if (isTeacher) scheme.secondary else scheme.primary
+        isTeacher -> scheme.onSecondaryContainer
+        else -> scheme.onPrimaryContainer
+    }
 
     Surface(
         onClick = onClick,
@@ -703,7 +748,11 @@ private fun FavoriteTargetRow(
         contentColor = content,
         border = BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+            if (selected && isNightCity) {
+                scheme.primary.copy(alpha = 0.7f)
+            } else {
+                scheme.outlineVariant.copy(alpha = 0.45f)
+            },
         ),
     ) {
         Row(
@@ -713,13 +762,7 @@ private fun FavoriteTargetRow(
         ) {
             Surface(
                 shape = CircleShape,
-                color = if (selected) {
-                    content.copy(alpha = 0.12f)
-                } else if (isTeacher) {
-                    MaterialTheme.colorScheme.secondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.primaryContainer
-                },
+                color = avatarContainer,
                 modifier = Modifier.size(32.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -727,11 +770,7 @@ private fun FavoriteTargetRow(
                         Icon(
                             Icons.Rounded.Person,
                             contentDescription = null,
-                            tint = if (selected) {
-                                content
-                            } else {
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                            },
+                            tint = avatarContent,
                             modifier = Modifier.size(17.dp),
                         )
                     } else {
@@ -739,11 +778,7 @@ private fun FavoriteTargetRow(
                             initial,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Black,
-                            color = if (selected) {
-                                content
-                            } else {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            },
+                            color = avatarContent,
                         )
                     }
                 }
@@ -1073,7 +1108,9 @@ fun SettingsButton(
                     ),
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier
+                            .padding(24.dp)
+                            .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
                         Row(
@@ -1124,7 +1161,23 @@ fun SettingsButton(
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
                         )
 
-                        SettingsSectionLabel("Цветовая палитра")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            SettingsSectionLabel(
+                                "Цветовая палитра",
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = state.palette.displayName,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                textAlign = TextAlign.End,
+                            )
+                        }
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1146,9 +1199,13 @@ fun SettingsButton(
 }
 
 @Composable
-private fun SettingsSectionLabel(text: String) {
+private fun SettingsSectionLabel(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
     Text(
         text,
+        modifier = modifier,
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
     )
@@ -1196,84 +1253,116 @@ private fun PaletteSwatch(
         MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
     }
 
-    Box(
+    Column(
         modifier = Modifier
-            .size(58.dp)
-            .clip(CircleShape)
+            .width(84.dp)
+            .clip(RoundedCornerShape(16.dp))
             .selectable(
                 selected = selected,
                 role = Role.RadioButton,
                 onClick = onClick,
             )
-            .semantics { contentDescription = palette.displayName }
-            .border(
-                width = if (selected) 3.dp else 1.dp,
-                color = ringColor,
-                shape = CircleShape,
-            )
-            .padding(6.dp),
-        contentAlignment = Alignment.Center,
+            .semantics(mergeDescendants = true) {
+                contentDescription = palette.displayName
+            }
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .clip(CircleShape)
-                .background(colors.first()),
+                .size(58.dp)
+                .border(
+                    width = if (selected) 3.dp else 1.dp,
+                    color = ringColor,
+                    shape = CircleShape,
+                )
+                .padding(6.dp),
             contentAlignment = Alignment.Center,
         ) {
-            if (colors.size > 1) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize(0.64f)
-                        .clip(CircleShape)
-                        .background(colors[1]),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (colors.size > 2) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize(0.48f)
-                                .clip(CircleShape)
-                                .background(colors[2]),
-                        )
-                    }
-                    if (palette == ThemePalette.System) {
-                        Box(
-                            modifier = Modifier
-                                .size(18.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.92f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(colors.first()),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (colors.size > 1) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize(0.64f)
+                            .clip(CircleShape)
+                            .background(colors[1]),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (colors.size > 2) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize(0.48f)
+                                    .clip(CircleShape)
+                                    .background(colors[2]),
+                            )
+                        }
+                        if (palette == ThemePalette.System) {
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.92f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Devices,
+                                    contentDescription = null,
+                                    tint = Color(0xFF4D19CC),
+                                    modifier = Modifier.size(13.dp),
+                                )
+                            }
+                        }
+                        if (palette == ThemePalette.Kawaii) {
                             Icon(
-                                Icons.Rounded.Devices,
+                                Icons.Rounded.Favorite,
                                 contentDescription = null,
-                                tint = Color(0xFF4D19CC),
-                                modifier = Modifier.size(13.dp),
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp),
                             )
                         }
                     }
                 }
             }
-        }
 
-        if (selected) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Rounded.Check,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(13.dp),
-                )
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(13.dp),
+                    )
+                }
             }
         }
+
+        Text(
+            text = palette.displayName,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -1619,28 +1708,44 @@ private fun LessonCard(
     compact: Boolean,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val accent = remember(lesson.type) { lessonAccent(lesson.type) }
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
+    val accent = rememberLessonAccent(lesson.type)
     val typeLabel = remember(lesson.type) { shortLessonType(lesson.type) }
     val weeksText = remember(lesson.weeks) { formatWeeks(lesson.weeks) }
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
-    val shape = if (compact) RoundedCornerShape(24.dp) else RoundedCornerShape(28.dp)
+    val shape = when {
+        isNightCity && compact -> RoundedCornerShape(10.dp)
+        isNightCity -> RoundedCornerShape(12.dp)
+        compact -> RoundedCornerShape(24.dp)
+        else -> RoundedCornerShape(28.dp)
+    }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .hoverable(interaction),
         shape = shape,
-        color = accent.copy(alpha = 0.10f).compositeOver(scheme.surfaceContainerLow),
+        color = if (isNightCity) {
+            scheme.surfaceContainerLow
+        } else {
+            accent.copy(alpha = 0.10f).compositeOver(scheme.surfaceContainerLow)
+        },
         contentColor = scheme.onSurface,
         tonalElevation = if (hovered) 2.dp else 0.dp,
         border = BorderStroke(
             1.dp,
-            accent.copy(alpha = 0.22f),
+            if (isNightCity) {
+                scheme.outlineVariant.copy(alpha = 0.6f)
+            } else {
+                accent.copy(alpha = 0.22f)
+            },
         ),
     ) {
         Row(
-            Modifier.padding(if (compact) 14.dp else 18.dp),
+            Modifier
+                .then(if (isNightCity) Modifier.lessonAccentStripe(accent) else Modifier)
+                .padding(if (compact) 14.dp else 18.dp),
             horizontalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 18.dp),
         ) {
             Column(
@@ -1650,7 +1755,11 @@ private fun LessonCard(
             ) {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
-                    color = accent.copy(alpha = 0.13f),
+                    color = if (isNightCity) {
+                        scheme.surfaceContainerHigh
+                    } else {
+                        accent.copy(alpha = 0.13f)
+                    },
                     contentColor = accent,
                 ) {
                     Column(
@@ -1804,11 +1913,29 @@ private fun MetaPill(
     }
 }
 
-internal fun weekdayAccent(day: Int, scheme: ColorScheme): Color = when (day) {
-    1, 4 -> scheme.primary
-    2, 5 -> scheme.secondary
-    3, 6 -> scheme.tertiary
-    else -> scheme.primary
+@Composable
+internal fun weekdayAccent(day: Int, scheme: ColorScheme): Color {
+    // Night City deliberately uses a single weekday accent. The week is a
+    // neutral grid; yellow marks the current day and selected controls.
+    if (LocalThemePalette.current == ThemePalette.NightCity) return scheme.primary
+    return when (day) {
+        1, 4 -> scheme.primary
+        2, 5 -> scheme.secondary
+        3, 6 -> scheme.tertiary
+        else -> scheme.primary
+    }
+}
+
+/**
+ * A thin vertical rule that marks a lesson type without tinting the whole card.
+ */
+internal fun Modifier.lessonAccentStripe(color: Color): Modifier = drawBehind {
+    drawLine(
+        color = color,
+        start = Offset(1.5.dp.toPx(), 0f),
+        end = Offset(1.5.dp.toPx(), size.height),
+        strokeWidth = 3.dp.toPx(),
+    )
 }
 
 internal fun shortLessonType(type: String): String {

@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "ru.uust.schedule"
-version = "0.5.0"
+version = "0.5.1"
 
 val composeVersion = "1.12.2"
 val material3Version = "1.9.0"
@@ -76,7 +76,7 @@ android {
         applicationId = "ru.uust.schedule"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
+        versionCode = 8
         versionName = project.version.toString()
     }
 
@@ -112,7 +112,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.AppImage)
             packageName = "uust-schedule"
-            packageVersion = "0.5.0"
+            packageVersion = "0.5.1"
             description = "Расписание УУНиТ"
             vendor = "UUST Schedule"
             copyright = "© 2026 UUST Schedule"

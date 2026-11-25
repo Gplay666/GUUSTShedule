@@ -71,6 +71,7 @@ fun Timetable(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
     val days = state.availableWeekdays
     val pairs = state.pairs
     val lessonsByCell = state.lessonsByCell
@@ -113,9 +114,16 @@ fun Timetable(
                 ) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.extraLarge,
+                        shape = if (isNightCity) {
+                            RoundedCornerShape(16.dp)
+                        } else {
+                            MaterialTheme.shapes.extraLarge
+                        },
                         color = scheme.surfaceContainerLowest,
-                        border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.38f)),
+                        border = BorderStroke(
+                            1.dp,
+                            scheme.outlineVariant.copy(alpha = if (isNightCity) 0.55f else 0.38f),
+                        ),
                     ) {
                         Column(Modifier.fillMaxWidth()) {
                             TimetableHeader(
@@ -152,7 +160,8 @@ private fun TimetableHeader(
     today: Int,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val lineColor = scheme.outlineVariant.copy(alpha = 0.32f)
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
+    val lineColor = scheme.outlineVariant.copy(alpha = if (isNightCity) 0.55f else 0.32f)
 
     Row(
         Modifier
@@ -195,7 +204,7 @@ private fun TimetableHeader(
                     .fillMaxHeight()
                     .background(
                         if (day == today) {
-                            accent.copy(alpha = 0.09f)
+                            accent.copy(alpha = if (isNightCity) 0.055f else 0.09f)
                         } else {
                             scheme.surfaceContainerHigh
                         }
@@ -214,7 +223,11 @@ private fun TimetableHeader(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = accent.copy(alpha = 0.15f),
+                            color = when {
+                                isNightCity && day == today -> accent
+                                isNightCity -> scheme.surfaceContainerHighest
+                                else -> accent.copy(alpha = 0.15f)
+                            },
                             modifier = Modifier.size(28.dp),
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -222,7 +235,11 @@ private fun TimetableHeader(
                                     weekdayShort(day),
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Black,
-                                    color = accent,
+                                    color = when {
+                                        isNightCity && day == today -> scheme.onPrimary
+                                        isNightCity -> scheme.onSurfaceVariant
+                                        else -> accent
+                                    },
                                 )
                             }
                         }
@@ -269,7 +286,8 @@ private fun TimetableRow(
     showWeeks: Boolean,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val lineColor = scheme.outlineVariant.copy(alpha = 0.32f)
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
+    val lineColor = scheme.outlineVariant.copy(alpha = if (isNightCity) 0.55f else 0.32f)
     val time = pairTimes[pair] ?: StandardPairTimes[pair].orEmpty()
 
     Row(
@@ -330,14 +348,15 @@ private fun TimetableCell(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
     val accent = weekdayAccent(day, scheme)
-    val lineColor = scheme.outlineVariant.copy(alpha = 0.32f)
+    val lineColor = scheme.outlineVariant.copy(alpha = if (isNightCity) 0.55f else 0.32f)
 
     Box(
         modifier = modifier
             .background(
                 if (isToday) {
-                    accent.copy(alpha = 0.035f)
+                    accent.copy(alpha = if (isNightCity) 0.045f else 0.035f)
                 } else {
                     scheme.surfaceContainerLowest
                 }
@@ -360,7 +379,7 @@ private fun TimetableCell(
             val lesson = lessons.first()
             TimetableLessonCard(
                 lesson = lesson,
-                accent = remember(lesson.type) { lessonAccent(lesson.type) },
+                accent = rememberLessonAccent(lesson.type),
                 showWeeks = showWeeks,
                 fillHeight = true,
                 modifier = Modifier.fillMaxSize(),
@@ -373,7 +392,7 @@ private fun TimetableCell(
                 lessons.forEachIndexed { index, lesson ->
                     TimetableLessonCard(
                         lesson = lesson,
-                        accent = remember(lesson.type) { lessonAccent(lesson.type) },
+                        accent = rememberLessonAccent(lesson.type),
                         showWeeks = showWeeks,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -395,18 +414,32 @@ private fun TimetableLessonCard(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val isNightCity = LocalThemePalette.current == ThemePalette.NightCity
+    val shape = if (isNightCity) RoundedCornerShape(8.dp) else RoundedCornerShape(12.dp)
 
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = accent.copy(alpha = 0.10f).compositeOver(scheme.surfaceContainerLowest),
+        shape = shape,
+        color = if (isNightCity) {
+            scheme.surfaceContainerLow
+        } else {
+            accent.copy(alpha = 0.10f).compositeOver(scheme.surfaceContainerLowest)
+        },
         contentColor = scheme.onSurface,
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.22f)),
+        border = BorderStroke(
+            1.dp,
+            if (isNightCity) {
+                scheme.outlineVariant.copy(alpha = 0.6f)
+            } else {
+                accent.copy(alpha = 0.22f)
+            },
+        ),
     ) {
         if (fillHeight) {
             Column(
                 Modifier
                     .fillMaxSize()
+                    .then(if (isNightCity) Modifier.lessonAccentStripe(accent) else Modifier)
                     .padding(horizontal = 8.dp, vertical = 7.dp),
             ) {
                 LessonTypeRow(
@@ -432,7 +465,9 @@ private fun TimetableLessonCard(
             }
         } else {
             Column(
-                Modifier.padding(horizontal = 7.dp, vertical = 6.dp),
+                Modifier
+                    .then(if (isNightCity) Modifier.lessonAccentStripe(accent) else Modifier)
+                    .padding(horizontal = 7.dp, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 LessonTypeRow(
