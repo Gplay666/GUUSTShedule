@@ -275,11 +275,11 @@ private fun Sidebar(
             ) {
                 BrandMark()
                 TargetSearch(state, onTargetSelected = onTargetSelected)
+                WeekSelector(state)
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SelectedTargetCard(state)
-                    FavoriteGroupsSection(state, onTargetSelected = onTargetSelected)
+                    FavoriteTargetsSection(state, onTargetSelected = onTargetSelected)
                 }
-                Spacer(Modifier.height(8.dp))
                 SidebarFooter(state)
             }
             HorizontalDivider(
@@ -346,7 +346,6 @@ private fun SidebarFooter(state: ScheduleState) {
                 )
             }
         }
-        WeekSelector(state)
         HorizontalDivider(
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
         )

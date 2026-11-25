@@ -117,7 +117,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import ru.uust.schedule.data.Group
 import ru.uust.schedule.data.GroupTarget
 import ru.uust.schedule.data.Lesson
 import ru.uust.schedule.data.ScheduleTarget
@@ -259,7 +258,7 @@ fun TargetSearch(
     val focusManager = LocalFocusManager.current
     val showSuggestions = state.query.isNotBlank() &&
         state.query.trim() != state.selectedTarget?.title
-    val selectedGroup = (state.selectedTarget as? GroupTarget)?.group
+    val selectedTarget = state.selectedTarget
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -303,9 +302,9 @@ fun TargetSearch(
                 ),
             )
             FavoriteStarButton(
-                isFavorite = selectedGroup?.let(state::isFavorite) == true,
-                enabled = selectedGroup != null,
-                onClick = { selectedGroup?.let(state::toggleFavorite) },
+                isFavorite = selectedTarget?.let(state::isFavorite) == true,
+                enabled = selectedTarget != null,
+                onClick = { selectedTarget?.let(state::toggleFavorite) },
             )
             trailingActions?.invoke()
         }
@@ -631,39 +630,39 @@ fun SelectedTargetCard(
 }
 
 @Composable
-fun FavoriteGroupsSection(
+fun FavoriteTargetsSection(
     state: ScheduleState,
     modifier: Modifier = Modifier,
     onTargetSelected: (() -> Unit)? = null,
 ) {
-    val favorites = state.favoriteGroups
+    val favorites = state.favoriteTargets
     if (favorites.isEmpty()) return
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            "ИЗБРАННЫЕ ГРУППЫ",
+            "ИЗБРАННОЕ",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             letterSpacing = 1.5.sp,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
-        favorites.forEach { group ->
-            FavoriteGroupRow(
-                group = group,
-                selected = state.isSelected(GroupTarget(group)),
+        favorites.forEach { target ->
+            FavoriteTargetRow(
+                target = target,
+                selected = state.isSelected(target),
                 onClick = {
-                    state.selectTarget(GroupTarget(group))
+                    state.selectTarget(target)
                     onTargetSelected?.invoke()
                 },
-                onRemove = { state.removeFavorite(group) },
+                onRemove = { state.removeFavorite(target) },
             )
         }
     }
 }
 
 @Composable
-private fun FavoriteGroupRow(
-    group: Group,
+private fun FavoriteTargetRow(
+    target: ScheduleTarget,
     selected: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
@@ -675,7 +674,7 @@ private fun FavoriteGroupRow(
             MaterialTheme.colorScheme.surfaceContainerHigh
         },
         animationSpec = AppMotion.effects(),
-        label = "favoriteGroupBackground",
+        label = "favoriteTargetBackground",
     )
     val content = if (selected) {
         MaterialTheme.colorScheme.onPrimaryContainer
@@ -687,6 +686,14 @@ private fun FavoriteGroupRow(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val isTeacher = target is TeacherTarget
+    val subtitle = when (target) {
+        is GroupTarget -> target.subtitle
+        is TeacherTarget -> listOf("Преподаватель", target.subtitle)
+            .filter { it.isNotBlank() }
+            .joinToString(" · ")
+    }
+    val initial = target.title.firstOrNull()?.uppercaseChar()?.toString().orEmpty()
 
     Surface(
         onClick = onClick,
@@ -700,27 +707,58 @@ private fun FavoriteGroupRow(
         ),
     ) {
         Row(
-            modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(
-                Icons.Rounded.Star,
-                contentDescription = null,
-                tint = if (selected) content else MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp),
-            )
+            Surface(
+                shape = CircleShape,
+                color = if (selected) {
+                    content.copy(alpha = 0.12f)
+                } else if (isTeacher) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.primaryContainer
+                },
+                modifier = Modifier.size(32.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (isTeacher) {
+                        Icon(
+                            Icons.Rounded.Person,
+                            contentDescription = null,
+                            tint = if (selected) {
+                                content
+                            } else {
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                            },
+                            modifier = Modifier.size(17.dp),
+                        )
+                    } else {
+                        Text(
+                            initial,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Black,
+                            color = if (selected) {
+                                content
+                            } else {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            },
+                        )
+                    }
+                }
+            }
             Column(Modifier.weight(1f)) {
                 Text(
-                    group.title,
+                    target.title,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (group.subtitle.isNotBlank()) {
+                if (subtitle.isNotBlank()) {
                     Text(
-                        group.subtitle,
+                        subtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = secondaryContent,
                         maxLines = 1,
@@ -734,7 +772,7 @@ private fun FavoriteGroupRow(
             ) {
                 Icon(
                     Icons.Rounded.Close,
-                    contentDescription = "Убрать «${group.title}» из избранного",
+                    contentDescription = "Убрать «${target.title}» из избранного",
                     tint = secondaryContent,
                     modifier = Modifier.size(18.dp),
                 )

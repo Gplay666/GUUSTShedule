@@ -43,7 +43,7 @@ class ScheduleState(
     var groups by mutableStateOf<List<Group>>(emptyList())
         private set
 
-    var favoriteGroupIds by mutableStateOf(favoritesPreferences.load())
+    var favoriteSelections by mutableStateOf(favoritesPreferences.load())
         private set
 
     var teachers by mutableStateOf<List<Teacher>>(emptyList())
@@ -182,27 +182,42 @@ class ScheduleState(
         return current.kind == target.kind && current.id == target.id
     }
 
-    val favoriteGroups: List<Group> by derivedStateOf {
+    val favoriteTargets: List<ScheduleTarget> by derivedStateOf {
         val groupsById = groups.associateBy { it.id }
-        favoriteGroupIds.mapNotNull { groupsById[it] }
+        val teachersById = teachers.associateBy { it.id }
+        favoriteSelections.mapNotNull { selection ->
+            when (selection.kind) {
+                TargetKind.Group -> groupsById[selection.id]?.let(::GroupTarget)
+                TargetKind.Teacher -> teachersById[selection.id]?.let(::TeacherTarget)
+            }
+        }
     }
 
-    fun isFavorite(group: Group): Boolean = group.id in favoriteGroupIds
+    fun isFavorite(target: ScheduleTarget): Boolean =
+        favoriteSelections.any { it.kind == target.kind && it.id == target.id }
 
-    fun toggleFavorite(group: Group) {
-        val updated = if (group.id in favoriteGroupIds) {
-            favoriteGroupIds - group.id
+    fun toggleFavorite(target: ScheduleTarget) {
+        val selection = target.selection
+        val updated = if (isFavorite(target)) {
+            favoriteSelections.filterNot {
+                it.kind == selection.kind && it.id == selection.id
+            }
         } else {
-            favoriteGroupIds + group.id
+            favoriteSelections + selection
         }
-        favoriteGroupIds = updated
+        favoriteSelections = updated
         favoritesPreferences.save(updated)
     }
 
-    fun removeFavorite(group: Group) {
-        if (group.id !in favoriteGroupIds) return
-        val updated = favoriteGroupIds - group.id
-        favoriteGroupIds = updated
+    fun removeFavorite(target: ScheduleTarget) {
+        val selection = target.selection
+        if (favoriteSelections.none { it.kind == selection.kind && it.id == selection.id }) {
+            return
+        }
+        val updated = favoriteSelections.filterNot {
+            it.kind == selection.kind && it.id == selection.id
+        }
+        favoriteSelections = updated
         favoritesPreferences.save(updated)
     }
 
